@@ -129,10 +129,11 @@ func bumpVersion(level string) {
 }
 
 func pushTags() {
-	cmd := exec.Command("git", "push", "--tags")
+	latestTag := getLatestTag()
+	cmd := exec.Command("git", "push", "origin", latestTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error pushing tags: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error pushing tag %s: %v\n", latestTag, err)
 		fmt.Println(string(output))
 		return
 	}
