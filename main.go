@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const initialVersion = "0.0.0"
+const initialVersion = "v0.0.0"
 
 var rootCmd = &cobra.Command{
 	Use:                "git-tags",
@@ -100,9 +100,11 @@ func getLatestTag() string {
 
 func bumpVersion(level string) {
 	latestTag := getLatestTag()
-	v, err := semver.NewVersion(latestTag)
+	// 移除v前缀以解析版本号
+	cleanedTag := strings.TrimPrefix(latestTag, "v")
+	v, err := semver.NewVersion(cleanedTag)
 	if err != nil {
-		v, _ = semver.NewVersion(initialVersion)
+		v, _ = semver.NewVersion(strings.TrimPrefix(initialVersion, "v"))
 	}
 
 	var newVersion semver.Version
@@ -115,7 +117,7 @@ func bumpVersion(level string) {
 		newVersion = v.IncMajor()
 	}
 
-	newTag := newVersion.String()
+	newTag := "v" + newVersion.String()
 	cmd := exec.Command("git", "tag", newTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
