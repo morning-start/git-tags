@@ -7,33 +7,71 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/spf13/cobra"
 )
 
 const initialVersion = "0.0.0"
 
-func main() {
-	if len(os.Args) < 2 {
-		showHelp()
-		return
-	}
+var rootCmd = &cobra.Command{
+	Use:                "git-tags",
+	Short:              "Manage git tags",
+	Long:               "A tool to manage git tags with version bumping capabilities.",
+	DisableSuggestions: true,
+	DisableAutoGenTag:  true,
+}
 
-	cmd := os.Args[1]
-
-	switch cmd {
-	case "ls":
+var lsCmd = &cobra.Command{
+	Use:   "ls",
+	Short: "Show all tags",
+	Run: func(cmd *cobra.Command, args []string) {
 		listTags()
-	case "patch":
+	},
+}
+
+var patchCmd = &cobra.Command{
+	Use:   "patch",
+	Short: "Increment patch version",
+	Run: func(cmd *cobra.Command, args []string) {
 		bumpVersion("patch")
-	case "minor":
+	},
+}
+
+var minorCmd = &cobra.Command{
+	Use:   "minor",
+	Short: "Increment minor version",
+	Run: func(cmd *cobra.Command, args []string) {
 		bumpVersion("minor")
-	case "major":
+	},
+}
+
+var majorCmd = &cobra.Command{
+	Use:   "major",
+	Short: "Increment major version",
+	Run: func(cmd *cobra.Command, args []string) {
 		bumpVersion("major")
-	case "push":
+	},
+}
+
+var pushCmd = &cobra.Command{
+	Use:   "push",
+	Short: "Push tags to remote",
+	Run: func(cmd *cobra.Command, args []string) {
 		pushTags()
-	case "--help", "-h":
-		showHelp()
-	default:
-		showHelp()
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(lsCmd)
+	rootCmd.AddCommand(patchCmd)
+	rootCmd.AddCommand(minorCmd)
+	rootCmd.AddCommand(majorCmd)
+	rootCmd.AddCommand(pushCmd)
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
 
@@ -44,7 +82,7 @@ func listTags() {
 		fmt.Fprintf(os.Stderr, "Error listing tags: %v\n", err)
 		return
 	}
-	fmt.Println(string(output))
+	fmt.Println(strings.TrimSpace(string(output)))
 }
 
 func getLatestTag() string {
@@ -97,16 +135,4 @@ func pushTags() {
 		return
 	}
 	fmt.Println(string(output))
-}
-
-func showHelp() {
-	fmt.Println(`Usage: git-tags [command]
-
-Commands:
-  ls		Show all tags
-  patch		Increment patch version
-  minor		Increment minor version
-  major		Increment major version
-  push		Push tags to remote
-  --help, -h	Show this help message`)
 }
