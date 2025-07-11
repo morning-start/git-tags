@@ -22,17 +22,16 @@ jobs:
       - name: Build
         run: |
           mkdir -p dist/
-          mkdir -p export/
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/${{ matrix.goos }}/
       - name: Compress Release
         uses: thedoctor0/zip-release@0.7.6
         with:
           type: 'zip'
-          path: "dist/${{ matrix.goos }}/*" 
-          filename: 'export/git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
+          directory: "dist/${{ matrix.goos }}"
+          filename: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
-          artifacts: "./export/*"
+          artifacts: "./dist/${{ matrix.goos }}/*.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
