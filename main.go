@@ -63,14 +63,10 @@ var pushCmd = &cobra.Command{
 
 var delCmd = &cobra.Command{
 	Use:   "del",
-	Short: "Delete the latest tag",
+	Short: "Delete the latest tag, remote and local",
 	Run: func(cmd *cobra.Command, args []string) {
 		branch, _ := cmd.Flags().GetString("branch")
-		if branch != "" {
-			deleteRemoteTag(branch)
-		} else {
-			deleteLatestTag()
-		}
+		deleteLatestTag(branch)
 	},
 }
 
@@ -79,8 +75,8 @@ func init() {
 	rootCmd.AddCommand(patchCmd)
 	rootCmd.AddCommand(minorCmd)
 	rootCmd.AddCommand(majorCmd)
-	rootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringP("branch", "b", "origin", "Specify the branch to push tags to")
+	rootCmd.AddCommand(pushCmd)
 	delCmd.Flags().StringP("branch", "b", "origin", "Specify the remote branch to delete tags")
 	rootCmd.AddCommand(delCmd)
 }
@@ -157,26 +153,22 @@ func pushTags(branch string) {
 	fmt.Println(string(output))
 }
 
-func deleteLatestTag() {
-	// Implement local latest tag deletion logic here
-	latestTag := getLatestTag()
-	cmd := exec.Command("git", "tag", "-d", latestTag)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
-		fmt.Println(string(output))
-		return
-	}
-}
-
-func deleteRemoteTag(branch string) {
-	// Implement remote tag deletion logic for the specified branch here
+func deleteLatestTag(branch string) {
 	latestTag := getLatestTag()
 	cmd := exec.Command("git", "push", branch, "--delete", latestTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
-		fmt.Println(string(output))
 		return
 	}
+	fmt.Println(string(output))
+
+	// Implement local latest tag deletion logic here
+	cmd_l := exec.Command("git", "tag", "-d", latestTag)
+	output_l, err_l := cmd_l.CombinedOutput()
+	if err_l != nil {
+		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
+		return
+	}
+	fmt.Println(string(output_l))
 }
