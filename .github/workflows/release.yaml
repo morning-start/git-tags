@@ -6,10 +6,9 @@ on:
       - 'v*'
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         goarch: [amd64]
         goos: [linux, windows, darwin]
     steps:
@@ -21,27 +20,17 @@ jobs:
       - name: Build
         run: |
           mkdir -p dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/git-tags-${{ matrix.goos }}-$GITHUB_REF_NAME.zip
-      - name: Package
-        run: |
-          cd dist
-          zip git-tags-${{ matrix.goos }}-$GITHUB_REF_NAME.zip *
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/${{ matrix.goos }}/
+      - name: Compress Release
+        uses: morning-start/compress-action@0.0.2
         with:
-          name: git-tags-${{ matrix.goos }}-$GITHUB_REF_NAME
-          path: dist/
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          path: dist
+          file_type: 'zip'
+          paths: [ "dist/${{ matrix.goos }}/*" ]
+          filename: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
+          out_dir: "export"
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
-          artifacts: "dist/*.zip"
+          artifacts: "export/*.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
