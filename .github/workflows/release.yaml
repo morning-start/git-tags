@@ -7,7 +7,7 @@ on:
 jobs:
   release:
     permissions:  # 添加权限设置
-        contents: write  # 允许读写仓库内容
+        contents: write  # 允许读写仓库内容    
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,7 +28,7 @@ jobs:
         with:
           type: 'zip'
           directory: "dist/${{ matrix.goos }}"
-          filename: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
+          filename: 'git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip'
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
