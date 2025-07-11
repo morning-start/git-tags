@@ -31,6 +31,6 @@ jobs:
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
-          artifacts: "export/*.zip"
+          artifacts: "./export/*"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
