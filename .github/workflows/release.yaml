@@ -5,7 +5,9 @@ on:
     tags:
       - 'v*'
 jobs:
-  build:
+  release:
+    permissions:  # 添加权限设置
+        contents: write  # 允许读写仓库内容
     runs-on: ubuntu-latest
     strategy:
       matrix:
