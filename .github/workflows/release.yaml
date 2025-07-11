@@ -22,10 +22,10 @@ jobs:
           mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/${{ matrix.goos }}/
       - name: Compress Release
-        uses: morning-start/compress-action@0.0.2
+        uses: morning-start/compress-action@0.0.3
         with:
           file_type: 'zip'
-          paths: [ "dist/${{ matrix.goos }}/*" ]
+          paths: "dist/${{ matrix.goos }}/*" 
           filename: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
           out_dir: "export"
       - name: Create Release
