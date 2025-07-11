@@ -86,7 +86,7 @@ func listTags() {
 }
 
 func getLatestTag() string {
-	cmd := exec.Command("git", "tag", "--sort=-v:refname")
+	cmd := exec.Command("git", "tag", "-l", "v*", "--sort=-v:refname")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return initialVersion
