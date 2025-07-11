@@ -56,7 +56,21 @@ var pushCmd = &cobra.Command{
 	Use:   "push",
 	Short: "Push tags to remote",
 	Run: func(cmd *cobra.Command, args []string) {
-		pushTags()
+		branch, _ := cmd.Flags().GetString("branch")
+		pushTags(branch)
+	},
+}
+
+var delCmd = &cobra.Command{
+	Use:   "del",
+	Short: "Delete the latest tag",
+	Run: func(cmd *cobra.Command, args []string) {
+		branch, _ := cmd.Flags().GetString("branch")
+		if branch != "" {
+			deleteRemoteTag(branch)
+		} else {
+			deleteLatestTag()
+		}
 	},
 }
 
@@ -66,6 +80,9 @@ func init() {
 	rootCmd.AddCommand(minorCmd)
 	rootCmd.AddCommand(majorCmd)
 	rootCmd.AddCommand(pushCmd)
+	pushCmd.Flags().StringP("branch", "b", "origin", "Specify the branch to push tags to")
+	delCmd.Flags().StringP("branch", "b", "origin", "Specify the remote branch to delete tags")
+	rootCmd.AddCommand(delCmd)
 }
 
 func main() {
@@ -128,9 +145,9 @@ func bumpVersion(level string) {
 	fmt.Printf("Created tag %s\n", newTag)
 }
 
-func pushTags() {
+func pushTags(branch string) {
 	latestTag := getLatestTag()
-	cmd := exec.Command("git", "push", "origin", latestTag)
+	cmd := exec.Command("git", "push", branch, latestTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error pushing tag %s: %v\n", latestTag, err)
@@ -138,4 +155,28 @@ func pushTags() {
 		return
 	}
 	fmt.Println(string(output))
+}
+
+func deleteLatestTag() {
+	// Implement local latest tag deletion logic here
+	latestTag := getLatestTag()
+	cmd := exec.Command("git", "tag", "-d", latestTag)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
+		fmt.Println(string(output))
+		return
+	}
+}
+
+func deleteRemoteTag(branch string) {
+	// Implement remote tag deletion logic for the specified branch here
+	latestTag := getLatestTag()
+	cmd := exec.Command("git", "push", branch, "--delete", latestTag)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
+		fmt.Println(string(output))
+		return
+	}
 }
