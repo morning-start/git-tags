@@ -19,10 +19,10 @@ jobs:
           go-version: '1.24.4'
       - name: Build
         run: |
-          mkdir -p dist
+          mkdir -p dist/
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/${{ matrix.goos }}/
       - name: Compress Release
-        uses: morning-start/compress-action@v0.0.3
+        uses: morning-start/compress-action@v0.0.4
         with:
           file_type: 'zip'
           paths: "dist/${{ matrix.goos }}/*" 
