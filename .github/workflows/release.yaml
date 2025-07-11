@@ -26,8 +26,8 @@ jobs:
         with:
           file_type: 'zip'
           paths: "dist/${{ matrix.goos }}/*" 
-          filename: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
-          out_dir: "export"
+          file_name: 'git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
+          output_dir: "export"
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
