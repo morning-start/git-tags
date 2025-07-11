@@ -25,7 +25,7 @@ jobs:
       - name: Compress Release
         uses: thedoctor0/zip-release@0.7.6
         with:
-          file_type: 'zip'
+          type: 'zip'
           path: "dist/${{ matrix.goos }}/*" 
           filename: 'export/git-tags-${{ matrix.goos }}-${{ matrix.goarch }}.zip'
       - name: Create Release
