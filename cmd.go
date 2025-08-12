@@ -5,18 +5,17 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:                "git-tags",
-	Short:              "Manage git tags",
-	Long:               "A tool to manage git tags with version bumping capabilities.",
-	DisableSuggestions: true,
-	DisableAutoGenTag:  true,
-	Version:            "v1.0.0",
+	Use:               "git-tags",
+	Short:             "Manage git tags",
+	Long:              "A tool to manage git tags with version bumping capabilities.",
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	Version:           "v1.0.0",
 }
 
 var lsCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
-	Short:   "Show all tags",
+	Short:   "(ls) Show all tags",
 	Run: func(cmd *cobra.Command, args []string) {
 		listTags()
 	},
@@ -58,7 +57,7 @@ var pushCmd = &cobra.Command{
 var delCmd = &cobra.Command{
 	Use:     "delate",
 	Aliases: []string{"del"},
-	Short:   "Delete the latest tag, remote and local",
+	Short:   "(del) Delete the latest tag, remote and local",
 	Run: func(cmd *cobra.Command, args []string) {
 		branch, _ := cmd.Flags().GetString("branch")
 		deleteLatestTag(branch)
