@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -21,8 +22,9 @@ var rootCmd = &cobra.Command{
 }
 
 var lsCmd = &cobra.Command{
-	Use:   "ls",
-	Short: "Show all tags",
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "Show all tags",
 	Run: func(cmd *cobra.Command, args []string) {
 		listTags()
 	},
@@ -62,8 +64,9 @@ var pushCmd = &cobra.Command{
 }
 
 var delCmd = &cobra.Command{
-	Use:   "del",
-	Short: "Delete the latest tag, remote and local",
+	Use:     "delate",
+	Aliases: []string{"del"},
+	Short:   "Delete the latest tag, remote and local",
 	Run: func(cmd *cobra.Command, args []string) {
 		branch, _ := cmd.Flags().GetString("branch")
 		deleteLatestTag(branch)
@@ -143,6 +146,8 @@ func bumpVersion(level string) {
 
 func pushTags(branch string) {
 	latestTag := getLatestTag()
+	// spinner
+	spinner, _ := pterm.DefaultSpinner.Start("Pushing tags...")
 	cmd := exec.Command("git", "push", branch, latestTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -150,6 +155,7 @@ func pushTags(branch string) {
 		fmt.Println(string(output))
 		return
 	}
+	spinner.Success("Pushed tags")
 	fmt.Println(string(output))
 }
 
