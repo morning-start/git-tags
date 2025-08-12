@@ -6,14 +6,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(lsCmd)
-	rootCmd.AddCommand(patchCmd)
-	rootCmd.AddCommand(minorCmd)
-	rootCmd.AddCommand(majorCmd)
 	pushCmd.Flags().StringP("branch", "b", "origin", "Specify the branch to push tags to")
-	rootCmd.AddCommand(pushCmd)
 	delCmd.Flags().StringP("branch", "b", "origin", "Specify the remote branch to delete tags")
-	rootCmd.AddCommand(delCmd)
+	rootCmd.AddCommand(lsCmd, patchCmd, minorCmd, majorCmd, pushCmd, delCmd)
 }
 
 func main() {
