@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/pterm/pterm"
 )
 
 const initialVersion = "v0.0.0"
@@ -68,7 +67,6 @@ func bumpVersion(level string) {
 func pushTags(branch string) {
 	latestTag := getLatestTag()
 	// spinner
-	spinner, _ := pterm.DefaultSpinner.Start("Pushing tags...")
 	cmd := exec.Command("git", "push", branch, latestTag)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -76,26 +74,37 @@ func pushTags(branch string) {
 		fmt.Println(string(output))
 		return
 	}
-	spinner.Success("Pushed tags")
 	fmt.Println(string(output))
 }
 
 func deleteLatestTag(branch string) {
 	latestTag := getLatestTag()
+	_delTagLocal(latestTag)
+	_delTagRemote(branch, latestTag)
+}
+
+func _delTagRemote(branch string, latestTag string) {
 	cmd := exec.Command("git", "push", branch, "--delete", latestTag)
 	output, err := cmd.CombinedOutput()
+	// 如果错误是 exit status 1，这说明不存在该tag
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
+		if strings.Contains(string(output), "exit status 1") {
+			fmt.Printf("remote %s tag does not exist.", latestTag)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "Error deleting remote tag %s: %v\n", latestTag, err)
 		return
 	}
 	fmt.Println(string(output))
+}
 
-	// Implement local latest tag deletion logic here
-	cmd_l := exec.Command("git", "tag", "-d", latestTag)
-	output_l, err_l := cmd_l.CombinedOutput()
-	if err_l != nil {
-		fmt.Fprintf(os.Stderr, "Error deleting tag %s: %v\n", latestTag, err)
+func _delTagLocal(latestTag string) {
+	cmd := exec.Command("git", "tag", "-d", latestTag)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error deleting local tag %s: %v\n", latestTag, err)
 		return
 	}
-	fmt.Println(string(output_l))
+	fmt.Println(string(output))
 }
