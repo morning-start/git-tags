@@ -25,7 +25,8 @@ var patchCmd = &cobra.Command{
 	Use:   "patch",
 	Short: "Increment patch version",
 	Run: func(cmd *cobra.Command, args []string) {
-		bumpVersion("patch")
+		push, _ := cmd.Flags().GetBool("push")
+		bumpVersion("patch", push)
 	},
 }
 
@@ -33,7 +34,8 @@ var minorCmd = &cobra.Command{
 	Use:   "minor",
 	Short: "Increment minor version",
 	Run: func(cmd *cobra.Command, args []string) {
-		bumpVersion("minor")
+		push, _ := cmd.Flags().GetBool("push")
+		bumpVersion("minor", push)
 	},
 }
 
@@ -41,7 +43,8 @@ var majorCmd = &cobra.Command{
 	Use:   "major",
 	Short: "Increment major version",
 	Run: func(cmd *cobra.Command, args []string) {
-		bumpVersion("major")
+		push, _ := cmd.Flags().GetBool("push")
+		bumpVersion("major", push)
 	},
 }
 

@@ -34,9 +34,8 @@ func getLatestTag() string {
 	return initialVersion
 }
 
-func bumpVersion(level string) {
+func bumpVersion(level string, push bool) {
 	latestTag := getLatestTag()
-	// 移除v前缀以解析版本号
 	cleanedTag := strings.TrimPrefix(latestTag, "v")
 	v, err := semver.NewVersion(cleanedTag)
 	if err != nil {
@@ -62,6 +61,10 @@ func bumpVersion(level string) {
 		return
 	}
 	fmt.Printf("Created tag %s\n", newTag)
+
+	if push {
+		pushTags("origin")
+	}
 }
 
 func pushTags(branch string) {
