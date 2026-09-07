@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,6 +25,12 @@ func TestFileProviders(t *testing.T) {
 			origVersion: "1.3.0", newVersion: "1.4.0",
 			writable: []string{"Cargo.toml", "tauri.conf.json"},
 			readOnly: []string{"Cargo.lock"},
+		},
+		{
+			name: "tauri-src", newProvider: NewTauri, fixture: "tauri-src",
+			origVersion: "1.3.0", newVersion: "1.4.0",
+			writable: []string{"src-tauri/Cargo.toml", "src-tauri/tauri.conf.json"},
+			readOnly: []string{"src-tauri/Cargo.lock"},
 		},
 		{
 			name: "uv", newProvider: NewUV, fixture: "uv",
@@ -97,26 +104,31 @@ func TestDetectNegative(t *testing.T) {
 	}
 }
 
-// copyFixture 把 fixture 目录复制到临时目录，返回临时目录路径。
+// copyFixture 把 fixture 目录（含子目录）复制到临时目录，返回临时目录路径。
 func copyFixture(t *testing.T, name string) string {
 	t.Helper()
 	src := filepath.Join("testdata/fixtures", name)
 	dst := t.TempDir()
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatalf("读取 fixture %s 失败: %v", name, err)
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(src, e.Name()))
+	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			t.Fatalf("读取 %s 失败: %v", e.Name(), err)
+			return err
 		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), data, 0o644); err != nil {
-			t.Fatalf("写入 %s 失败: %v", e.Name(), err)
+		rel, err := filepath.Rel(src, path)
+		if err != nil || rel == "." {
+			return err
 		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+	if err != nil {
+		t.Fatalf("复制 fixture %s 失败: %v", name, err)
 	}
 	return dst
 }

@@ -26,11 +26,16 @@ func (p *Provider) Priority() int { return p.plugin.Priority }
 
 func (p *Provider) Targets() []provider.Target { return nil }
 
+// load 执行插件脚本（文件或内嵌内容）并返回 plugin 全局表。
+func (p *Provider) load(L *lua.LState) (*lua.LTable, error) {
+	return loadPluginSource(L, p.plugin.Path, p.plugin.Content)
+}
+
 // Detect 调用插件 detect(project)；脚本错误视为未命中（返回 false）。
 func (p *Provider) Detect(ctx *provider.Context) bool {
 	ok := false
 	err := p.runner.exec(func(L *lua.LState) error {
-		tbl, err := loadPlugin(L, p.plugin.Path)
+		tbl, err := p.load(L)
 		if err != nil {
 			return err
 		}
@@ -50,7 +55,7 @@ func (p *Provider) Detect(ctx *provider.Context) bool {
 func (p *Provider) Read(ctx *provider.Context) (string, error) {
 	var ver string
 	err := p.runner.exec(func(L *lua.LState) error {
-		tbl, err := loadPlugin(L, p.plugin.Path)
+		tbl, err := p.load(L)
 		if err != nil {
 			return err
 		}
@@ -69,7 +74,7 @@ func (p *Provider) Read(ctx *provider.Context) (string, error) {
 // Write 调用插件 write(project, version)。
 func (p *Provider) Write(ctx *provider.Context, version string) error {
 	err := p.runner.exec(func(L *lua.LState) error {
-		tbl, err := loadPlugin(L, p.plugin.Path)
+		tbl, err := p.load(L)
 		if err != nil {
 			return err
 		}

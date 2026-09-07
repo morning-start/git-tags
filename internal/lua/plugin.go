@@ -15,8 +15,9 @@ type Plugin struct {
 	Kind     string // "provider" | "hook"
 	Priority int
 	Desc     string
-	Path     string // 插件文件绝对路径
-	Source   string // "global" | "project"
+	Path     string // 插件文件绝对路径（Content 非空时可为空）
+	Content  string // 内嵌脚本内容（空 = 从 Path 加载）
+	Source   string // "global" | "project" | "embedded"
 	Err      error  // 加载错误（非法脚本仍被列出，但不参与执行）
 }
 
@@ -86,11 +87,10 @@ func scanDir(dir, source string, gitLatest func() string) []Plugin {
 	return out
 }
 
-// loadManifest 解析插件文件的 plugin 全局表（name/type/priority/description）。
-func loadManifest(path string, gitLatest func() string) (name, kind, desc string, priority int, err error) {
-	r := NewRunner(".", gitLatest)
+// loadManifestFrom 解析插件脚本的 plugin 全局表（name/type/priority/description）。
+func loadManifestFrom(r *Runner, path, content string) (name, kind, desc string, priority int, err error) {
 	err = r.exec(func(L *lua.LState) error {
-		tbl, err := loadPlugin(L, path)
+		tbl, err := loadPluginSource(L, path, content)
 		if err != nil {
 			return err
 		}
@@ -104,6 +104,35 @@ func loadManifest(path string, gitLatest func() string) (name, kind, desc string
 		return nil
 	})
 	return
+}
+
+// loadManifest 解析插件文件的 plugin 全局表（name/type/priority/description）。
+func loadManifest(path string, gitLatest func() string) (name, kind, desc string, priority int, err error) {
+	return loadManifestFrom(NewRunner(".", gitLatest), path, "")
+}
+
+// loadManifestContent 解析内嵌脚本内容的 plugin 全局表。
+func loadManifestContent(content string, gitLatest func() string) (name, kind, desc string, priority int, err error) {
+	return loadManifestFrom(NewRunner(".", gitLatest), "", content)
+}
+
+// LoadEmbeddedProvider 从内嵌内容创建 Lua provider 插件（先解析 manifest 再包装）。
+// 内容必须声明 type = "provider" 并实现 detect/read/write。
+func LoadEmbeddedProvider(name, content string, r *Runner) (*Provider, error) {
+	manifestName, kind, _, priority, err := loadManifestContent(content, nil)
+	if err != nil {
+		return nil, fmt.Errorf("内嵌插件 %s 解析失败: %w", name, err)
+	}
+	if kind != "provider" {
+		return nil, fmt.Errorf("内嵌插件 %s 类型为 %q，应为 provider", name, kind)
+	}
+	if manifestName != "" {
+		name = manifestName
+	}
+	return &Provider{
+		plugin: Plugin{Name: name, Kind: "provider", Priority: priority, Content: content, Source: "embedded"},
+		runner: r,
+	}, nil
 }
 
 func tableString(L *lua.LState, tbl *lua.LTable, key, def string) string {

@@ -25,6 +25,25 @@ var PluginsListCmd = &cobra.Command{
 			}
 			fmt.Printf("%-15s %-8s %-7s %3d  %s\n", p.Name, p.Kind, p.Source, p.Priority, status)
 		}
+		// 内嵌 provider（未被用户插件覆盖的）
+		userNames := map[string]bool{}
+		for _, p := range plugins {
+			if p.Err == nil && p.Kind == "provider" {
+				userNames[p.Name] = true
+			}
+		}
+		for name, content := range embeddedProviders {
+			if userNames[name] {
+				continue
+			}
+			status, prio := "ok", 50
+			if ep, err := lua.LoadEmbeddedProvider(name, content, lua.NewRunner(absRoot, gitProv.LatestTag)); err != nil {
+				status = "error: " + err.Error()
+			} else {
+				prio = ep.Priority()
+			}
+			fmt.Printf("%-15s %-8s %-7s %3d  %s\n", name, "provider", "embedded", prio, status)
+		}
 		return nil
 	},
 }

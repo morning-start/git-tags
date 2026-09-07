@@ -47,25 +47,75 @@ func newGitProvider() *provider.GitProvider {
 	return g
 }
 
+// embeddedProviders 是内嵌进二进制的 Lua provider 内容（name → 脚本内容）。
+// 优先级：用户插件 > 内嵌插件 > 内置 Go provider（同名时后者被覆盖）。
+var embeddedProviders = map[string]string{}
+
+// RegisterEmbeddedProvider 注册一个内嵌的 Lua provider（由 main 包注入）。
+// 注意：engine 在包变量初始化时已构建（此时内嵌列表为空），所以注册后必须
+// 重建引擎，内嵌插件才能生效（main 在 Execute 前调用本函数，时序安全）。
+func RegisterEmbeddedProvider(name, content string) {
+	embeddedProviders[name] = content
+	engine = newEngine()
+}
+
 // newEngine 组装引擎：内置 provider + Lua provider 插件 + Lua hook 插件。
+// provider 按名解析，同名时 Lua 插件覆盖：用户插件 > 内嵌插件 > 内置 Go provider。
 func newEngine() *core.Engine {
-	providers := []provider.Provider{
-		provider.NewTauri(),
-		provider.NewFlutter(),
-		provider.NewUV(),
-		provider.NewNode(),
+	// 内置 Go provider（Lua 同名插件会覆盖它们）
+	goBuiltins := []struct {
+		name string
+		p    provider.Provider
+	}{
+		{"tauri", provider.NewTauri()},
+		{"flutter", provider.NewFlutter()},
+		{"uv", provider.NewUV()},
+		{"node", provider.NewNode()},
 	}
+
+	// 用户 Lua provider 名（最高优先级）
+	userProviders := map[string]bool{}
+	for _, p := range plugins {
+		if p.Err == nil && p.Kind == "provider" {
+			userProviders[p.Name] = true
+		}
+	}
+
+	// 按名解析最终 provider 列表：内置 → 内嵌 → 用户（逐级覆盖）
+	byName := map[string]provider.Provider{}
+	for _, b := range goBuiltins {
+		byName[b.name] = b.p
+	}
+	for name, content := range embeddedProviders {
+		if userProviders[name] {
+			continue // 用户插件已覆盖，内嵌不再注册
+		}
+		ep, err := lua.LoadEmbeddedProvider(name, content, lua.NewRunner(absRoot, gitProv.LatestTag))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 内嵌插件 %s 加载失败: %v\n", name, err)
+			continue
+		}
+		byName[name] = ep
+	}
+	for _, p := range plugins {
+		if p.Err != nil || p.Kind != "provider" {
+			continue
+		}
+		byName[p.Name] = lua.NewProvider(p, lua.NewRunner(absRoot, gitProv.LatestTag))
+	}
+
+	providers := make([]provider.Provider, 0, len(byName))
+	for _, p := range byName {
+		providers = append(providers, p)
+	}
+
 	var hooks []provider.Hook
 	for _, p := range plugins {
 		if p.Err != nil {
 			continue
 		}
-		r := lua.NewRunner(absRoot, gitProv.LatestTag)
-		switch p.Kind {
-		case "provider":
-			providers = append(providers, lua.NewProvider(p, r))
-		case "hook":
-			hooks = append(hooks, lua.NewHook(p, r))
+		if p.Kind == "hook" {
+			hooks = append(hooks, lua.NewHook(p, lua.NewRunner(absRoot, gitProv.LatestTag)))
 		}
 	}
 	e := core.New(cfg, providers...)

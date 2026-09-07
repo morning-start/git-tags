@@ -3,12 +3,13 @@ package provider
 // fileProvider 是文件型 provider 的公共骨架：tauri/uv/flutter/node 等内置
 // 项目类型复用同一实现，仅通过闭包注入 detect/read/write 逻辑。
 type fileProvider struct {
-	name     string
-	priority int
-	targets  []Target
-	detect   func(root string) bool
-	read     func(root string) (string, error)
-	write    func(root string, version string) error
+	name        string
+	priority    int
+	targets     []Target
+	detect      func(root string) bool
+	read        func(root string) (string, error)
+	write       func(root string, version string) error
+	previewFunc func(ctx *Context, version string) ([]TargetChange, error) // 可选：布局相关 provider 定制预览
 }
 
 func (f *fileProvider) Name() string { return f.name }
@@ -27,6 +28,9 @@ func (f *fileProvider) Write(ctx *Context, version string) error {
 
 // Preview 实现 provider.Previewer：对每个可写 target 给出「旧值 → 新值」预览。
 func (f *fileProvider) Preview(ctx *Context, version string) ([]TargetChange, error) {
+	if f.previewFunc != nil {
+		return f.previewFunc(ctx, version)
+	}
 	var out []TargetChange
 	root := ctx.Project.Root
 	for _, t := range f.targets {

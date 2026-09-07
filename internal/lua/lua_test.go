@@ -304,3 +304,54 @@ function plugin.write(project, version) end
 		t.Errorf("运行时错误应标明插件名 bad，实际: %v", err)
 	}
 }
+
+// TestEmbeddedProviderE2E 验证内嵌内容创建的 provider 可走引擎全链路
+// （对应二进制的内嵌 Lua 插件开箱即用）。
+func TestEmbeddedProviderE2E(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "VERSION"), "1.2.3\n")
+	initTestRepo(t, root, "v1.2.3")
+
+	ep, err := LoadEmbeddedProvider("myapp", testProviderPlugin, NewRunner(root, nil))
+	if err != nil {
+		t.Fatalf("LoadEmbeddedProvider error: %v", err)
+	}
+	if ep.Name() != "myapp" || ep.Priority() != 60 {
+		t.Errorf("内嵌 provider 元数据 = %s/%d, want myapp/60", ep.Name(), ep.Priority())
+	}
+
+	engine := core.New(config.Default(), ep)
+	ctx := &provider.Context{Project: &provider.Project{Root: root}, Log: t.Logf}
+
+	items, err := engine.Check(ctx)
+	if err != nil {
+		t.Fatalf("Check error: %v", err)
+	}
+	var found bool
+	for _, it := range items {
+		if it.Provider == "myapp" {
+			found = true
+			if it.Version != "1.2.3" || !it.InSync {
+				t.Errorf("myapp check = %+v, want 1.2.3 in sync", it)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("check 未包含内嵌 provider myapp: %+v", items)
+	}
+
+	if err := engine.Bump(ctx, "patch", core.Options{}); err != nil {
+		t.Fatalf("Bump error: %v", err)
+	}
+	if got := readTestFile(t, filepath.Join(root, "VERSION")); got != "1.2.4\n" {
+		t.Errorf("VERSION = %q, want 1.2.4", got)
+	}
+}
+
+// TestLoadEmbeddedProviderInvalid 验证非 provider 类型的内嵌内容被拒绝。
+func TestLoadEmbeddedProviderInvalid(t *testing.T) {
+	_, err := LoadEmbeddedProvider("bad", `plugin = { name = "bad", type = "hook" }`, NewRunner(".", nil))
+	if err == nil {
+		t.Errorf("hook 类型的内嵌内容应被拒绝")
+	}
+}

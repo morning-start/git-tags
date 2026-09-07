@@ -117,9 +117,13 @@ func (r *Runner) writeFile(path, content string) error {
 	return os.WriteFile(full, []byte(content), 0o644)
 }
 
-// loadPlugin 执行插件文件并返回全局表 plugin。
-func loadPlugin(L *lua.LState, path string) (*lua.LTable, error) {
-	if err := L.DoFile(path); err != nil {
+// loadPluginSource 执行插件脚本（文件路径或内嵌内容）并返回全局表 plugin。
+func loadPluginSource(L *lua.LState, path, content string) (*lua.LTable, error) {
+	if content != "" {
+		if err := L.DoString(content); err != nil {
+			return nil, err
+		}
+	} else if err := L.DoFile(path); err != nil {
 		return nil, err
 	}
 	tbl, ok := L.GetGlobal("plugin").(*lua.LTable)
@@ -127,6 +131,11 @@ func loadPlugin(L *lua.LState, path string) (*lua.LTable, error) {
 		return nil, fmt.Errorf("插件 %s 未定义全局表 plugin（请用 plugin = {...} 声明）", path)
 	}
 	return tbl, nil
+}
+
+// loadPlugin 执行插件文件并返回全局表 plugin。
+func loadPlugin(L *lua.LState, path string) (*lua.LTable, error) {
+	return loadPluginSource(L, path, "")
 }
 
 // callFn 调用 plugin 表中名为 name 的函数，返回调用错误（函数缺失也算错误）。

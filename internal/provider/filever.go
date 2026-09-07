@@ -35,6 +35,12 @@ func readFileAt(root, path string) (string, error) {
 	return readFile(join(root, path))
 }
 
+// fileExists 判断项目根下相对路径的文件是否存在。
+func fileExists(root, path string) bool {
+	_, err := os.Stat(join(root, path))
+	return err == nil
+}
+
 // ---- TOML 段内字段 ----
 
 // tomlSectionRange 返回 section 段的行范围 [start, end)。

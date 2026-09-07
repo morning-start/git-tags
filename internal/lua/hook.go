@@ -24,10 +24,15 @@ func (h *Hook) Name() string { return h.plugin.Name }
 
 func (h *Hook) Priority() int { return h.plugin.Priority }
 
+// load 执行插件脚本（文件或内嵌内容）并返回 plugin 全局表。
+func (h *Hook) load(L *lua.LState) (*lua.LTable, error) {
+	return loadPluginSource(L, h.plugin.Path, h.plugin.Content)
+}
+
 // Run 调用插件中对应 stage 的函数；未实现该函数则静默跳过。
 func (h *Hook) Run(ctx *provider.Context, stage string, from, to string) error {
 	err := h.runner.exec(func(L *lua.LState) error {
-		tbl, err := loadPlugin(L, h.plugin.Path)
+		tbl, err := h.load(L)
 		if err != nil {
 			return err
 		}
