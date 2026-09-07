@@ -56,3 +56,16 @@ type Hook interface {
 	Priority() int
 	Run(ctx *Context, stage string, from, to string) error
 }
+
+// TargetChange 描述 dry-run 预览中单个文件的版本改动。
+type TargetChange struct {
+	Path string // 相对项目根的文件路径
+	Old  string
+	New  string
+}
+
+// Previewer 可选接口：dry-run 时提供 target 级「旧值 → 新值」预览。
+// 未实现该接口的 provider 在 dry-run 中只输出 provider 级提示。
+type Previewer interface {
+	Preview(ctx *Context, version string) ([]TargetChange, error)
+}

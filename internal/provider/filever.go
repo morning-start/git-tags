@@ -167,3 +167,24 @@ func readYAMLRootVersion(content string) (string, bool) {
 	}
 	return "", false
 }
+
+// readTargetValue 按 Target 的字段路径通用读取文件内的版本值，
+// 供 dry-run 预览等场景使用（与各 provider 的专有逻辑等价）。
+func readTargetValue(content string, t Target) (string, bool) {
+	switch filepath.Ext(t.Path) {
+	case ".toml":
+		parts := strings.SplitN(t.Field, ".", 2)
+		if len(parts) != 2 {
+			return "", false
+		}
+		return readTOMLSectionKey(content, parts[0], parts[1])
+	case ".json":
+		return readJSONKey(content, t.Field)
+	case ".yaml", ".yml":
+		if strings.Contains(t.Field, ".") {
+			return "", false // 嵌套字段（如 pubspec.lock）仅顶层支持
+		}
+		return readYAMLTopKey(content, t.Field)
+	}
+	return "", false
+}

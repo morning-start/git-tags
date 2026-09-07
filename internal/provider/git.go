@@ -20,6 +20,9 @@ func NewGitProvider(prefix string) *GitProvider {
 	return &GitProvider{runner: git.NewRunner(), prefix: prefix}
 }
 
+// SetRoot 设置 git 操作的工作目录（项目根），保证 git 命令在项目内执行。
+func (p *GitProvider) SetRoot(root string) { p.runner.SetDir(root) }
+
 func (p *GitProvider) Name() string  { return "git" }
 func (p *GitProvider) Priority() int { return 100 }
 

@@ -63,6 +63,20 @@ func (e *Engine) runHooks(ctx *provider.Context, stage, from, to string) error {
 	return nil
 }
 
+// previewWrite 输出 dry-run 时 provider 将要写入的细节：
+// 实现 Previewer 的 provider 显示逐文件「旧值 → 新值」，否则回退到 provider 级提示。
+func (e *Engine) previewWrite(ctx *provider.Context, p provider.Provider, version string) {
+	if pr, ok := p.(provider.Previewer); ok {
+		if changes, err := pr.Preview(ctx, version); err == nil && len(changes) > 0 {
+			for _, c := range changes {
+				ctx.Logf("[dry-run] %s: %s → %s", c.Path, c.Old, c.New)
+			}
+			return
+		}
+	}
+	ctx.Logf("[dry-run] %s: 将写入 %s", p.Name(), version)
+}
+
 // Git 返回权威源 provider，供命令层调用 git 操作。
 func (e *Engine) Git() *provider.GitProvider { return e.git }
 
@@ -174,7 +188,7 @@ func (e *Engine) Sync(ctx *provider.Context, dryRun bool) error {
 			continue
 		}
 		if dryRun {
-			ctx.Logf("[dry-run] %s: 将写入版本 %s", p.Name(), canonical)
+			e.previewWrite(ctx, p, canonical)
 			continue
 		}
 		if err := p.Write(ctx, canonical); err != nil {
@@ -224,7 +238,7 @@ func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 		ctx.Logf("[dry-run] 版本 %s → %s", canonical, newVersion)
 		for _, p := range e.activeProviders(ctx) {
 			if p != e.git && e.cfg.ProviderWritable(p.Name()) {
-				ctx.Logf("[dry-run] %s: 将写入 %s", p.Name(), newVersion)
+				e.previewWrite(ctx, p, newVersion)
 			}
 		}
 		if !opts.NoTag {
@@ -289,7 +303,7 @@ func (e *Engine) Set(ctx *provider.Context, version string, opts Options) error 
 		ctx.Logf("[dry-run] 将设置版本 %s", normalized)
 		for _, p := range e.activeProviders(ctx) {
 			if p != e.git && e.cfg.ProviderWritable(p.Name()) {
-				ctx.Logf("[dry-run] %s: 将写入 %s", p.Name(), normalized)
+				e.previewWrite(ctx, p, normalized)
 			}
 		}
 		if !opts.NoTag {
