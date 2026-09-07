@@ -1,0 +1,6 @@
+[core]
+tag_prefix = "v"
+
+[provider.go]
+# git-tags 自身的版本载体：cmd/root.go 中 cobra 命令的 Version 字段
+carriers = ["govar:cmd/root.go:Version"]

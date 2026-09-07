@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/yuin/gopher-lua"
+
+	"git-tags/internal/config"
 )
 
 // Runner 在沙箱中执行 Lua 脚本：每次调用使用全新 LState，带超时与 panic 兜底。
@@ -18,6 +20,7 @@ type Runner struct {
 	root      string        // 项目根（绝对路径），路径白名单基准
 	timeout   time.Duration // 单次脚本执行超时
 	gitLatest func() string // 供宿主 API gt.git.latest_tag() 使用
+	carriers  map[string][]config.Carrier // 供宿主 API gt.config.provider.<name>.carriers 使用
 }
 
 // NewRunner 创建 Runner；root 转为绝对路径作为路径白名单基准，
@@ -31,6 +34,16 @@ func NewRunner(root string, gitLatest func() string) *Runner {
 		gitLatest = func() string { return "" }
 	}
 	return &Runner{root: abs, timeout: 5 * time.Second, gitLatest: gitLatest}
+}
+
+// SetConfig 注入项目配置：把 [provider.<name>] carriers 暴露给 Lua 插件
+// （经 gt.config.provider.<name>.carriers 读取）。cfg 可空（视为无配置）。
+func (r *Runner) SetConfig(cfg *config.Config) {
+	if cfg == nil {
+		r.carriers = nil
+		return
+	}
+	r.carriers = cfg.ProviderCarriers
 }
 
 // SetTimeout 设置单次脚本执行超时（默认 5s；测试可调短）。

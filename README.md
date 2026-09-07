@@ -72,6 +72,26 @@ enabled = ["git", "tauri"]     # 只启用这些 provider（默认全部）
 
 [provider.uv]
 writable = false               # 只校验、绝不写入
+
+[provider.go]
+# Go 项目版本载体自定义（适配任意 Cobra/CLI 项目的版本文件）。
+# 格式 "kind:path" 或 "kind:path:field"：
+#   kind  = plain（纯文本文件，如 VERSION）| govar（Go var/const 赋值）
+#   path  = 项目内相对路径
+#   field = govar 的变量名，缺省 "Version"
+# 按列表顺序探测第一个存在的载体；未配置时用内置默认
+# （VERSION → version.go → internal/version/version.go）。
+carriers = [
+  "govar:internal/version/version.go:Version",
+  "plain:VERSION",
+]
+```
+
+示例：cobra CLI 项目的版本放在 `cmd/root.go` 的 `Version: "v1.0.0"` 字段时，可用
+
+```toml
+[provider.go]
+carriers = ["govar:cmd/root.go:Version"]
 ```
 
 ## Lua 插件

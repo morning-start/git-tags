@@ -37,7 +37,9 @@ var PluginsListCmd = &cobra.Command{
 				continue
 			}
 			status, prio := "ok", 50
-			if ep, err := lua.LoadEmbeddedProvider(name, content, lua.NewRunner(absRoot, gitProv.LatestTag)); err != nil {
+			r := lua.NewRunner(absRoot, gitProv.LatestTag)
+			r.SetConfig(cfg)
+			if ep, err := lua.LoadEmbeddedProvider(name, content, r); err != nil {
 				status = "error: " + err.Error()
 			} else {
 				prio = ep.Priority()

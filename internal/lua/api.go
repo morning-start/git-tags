@@ -14,6 +14,8 @@ import (
 //   - gt.log(msg)               输出用户可见日志
 //   - gt.semver.parse/inc/compare  版本运算
 //   - gt.git.latest_tag()       查询最新 git tag
+//   - gt.config.provider.<name>.carriers  项目配置的版本载体列表
+//     （.git-tags.toml [provider.<name>] carriers；未配置时表为空）
 func (r *Runner) registerAPI(L *lua.LState) {
 	gt := L.NewTable()
 
@@ -48,8 +50,32 @@ func (r *Runner) registerAPI(L *lua.LState) {
 
 	L.SetField(gt, "semver", r.semverTable(L))
 	L.SetField(gt, "git", r.gitTable(L))
+	L.SetField(gt, "config", r.configTable(L))
 
 	L.SetGlobal("gt", gt)
+}
+
+// configTable 构造 gt.config 表：{ provider = { <name> = { carriers = {
+// { kind = ..., path = ..., field = ... }, ... } } } }。仅暴露配置了
+// carriers 的 provider；未配置的 provider 不出现（Lua 插件回退内置默认）。
+func (r *Runner) configTable(L *lua.LState) *lua.LTable {
+	t := L.NewTable()
+	providerTbl := L.NewTable()
+	for name, carriers := range r.carriers {
+		p := L.NewTable()
+		arr := L.NewTable()
+		for i, c := range carriers {
+			ct := L.NewTable()
+			L.SetField(ct, "kind", lua.LString(c.Kind))
+			L.SetField(ct, "path", lua.LString(c.Path))
+			L.SetField(ct, "field", lua.LString(c.Field))
+			arr.RawSetInt(i+1, ct)
+		}
+		L.SetField(p, "carriers", arr)
+		L.SetField(providerTbl, name, p)
+	}
+	L.SetField(t, "provider", providerTbl)
+	return t
 }
 
 func (r *Runner) semverTable(L *lua.LState) *lua.LTable {

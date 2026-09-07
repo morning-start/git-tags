@@ -77,7 +77,9 @@ func newEngine() *core.Engine {
 		if userProviders[name] {
 			continue // 用户插件已覆盖，内嵌不再注册
 		}
-		ep, err := lua.LoadEmbeddedProvider(name, content, lua.NewRunner(absRoot, gitProv.LatestTag))
+		r := lua.NewRunner(absRoot, gitProv.LatestTag)
+		r.SetConfig(cfg)
+		ep, err := lua.LoadEmbeddedProvider(name, content, r)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "警告: 内嵌插件 %s 加载失败: %v\n", name, err)
 			continue
@@ -88,7 +90,9 @@ func newEngine() *core.Engine {
 		if p.Err != nil || p.Kind != "provider" {
 			continue
 		}
-		byName[p.Name] = lua.NewProvider(p, lua.NewRunner(absRoot, gitProv.LatestTag))
+		r := lua.NewRunner(absRoot, gitProv.LatestTag)
+		r.SetConfig(cfg)
+		byName[p.Name] = lua.NewProvider(p, r)
 	}
 
 	providers := make([]provider.Provider, 0, len(byName))
@@ -102,7 +106,9 @@ func newEngine() *core.Engine {
 			continue
 		}
 		if p.Kind == "hook" {
-			hooks = append(hooks, lua.NewHook(p, lua.NewRunner(absRoot, gitProv.LatestTag)))
+			r := lua.NewRunner(absRoot, gitProv.LatestTag)
+			r.SetConfig(cfg)
+			hooks = append(hooks, lua.NewHook(p, r))
 		}
 	}
 	e := core.New(cfg, providers...)
@@ -123,7 +129,7 @@ var RootCmd = &cobra.Command{
 	Short:             "Manage git tags",
 	Long:              "A tool to manage git tags with version bumping capabilities.",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
-	Version:           "v1.0.0",
+	Version:           "2.0.1",
 }
 
 var ListCmd = &cobra.Command{
