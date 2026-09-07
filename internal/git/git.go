@@ -41,6 +41,20 @@ func (r *Runner) GetLatestTag(prefix string) string {
 	return prefix + "0.0.0"
 }
 
+// GetLatestTagOrEmpty 同 GetLatestTag，但无匹配 tag 时返回空串（不做 0.0.0 兜底），
+// 用于区分「确实存在更早 tag」与「无 tag 可回滚」的场景。
+func (r *Runner) GetLatestTagOrEmpty(prefix string) string {
+	output, err := r.Run("tag", "-l", prefix+"*", "--sort=-v:refname")
+	if err != nil {
+		return ""
+	}
+	tags := strings.Split(output, "\n")
+	if len(tags) > 0 && tags[0] != "" {
+		return tags[0]
+	}
+	return ""
+}
+
 func (r *Runner) CreateTag(tag string) error {
 	output, err := r.Run("tag", tag)
 	if err != nil {
@@ -73,6 +87,11 @@ func (r *Runner) DeleteRemoteTag(branch, tag string) error {
 	if err != nil {
 		if strings.Contains(output, "exit status 1") {
 			fmt.Printf("remote %s tag does not exist\n", tag)
+			return nil
+		}
+		// 未配置该 remote（纯本地仓库）：跳过远端删除，不阻断本地删除与回滚
+		if strings.Contains(output, "does not appear to be a git repository") {
+			fmt.Printf("remote %s not configured, skipping remote delete\n", branch)
 			return nil
 		}
 		return fmt.Errorf("error deleting remote tag %s: %w\n%s", tag, err, output)

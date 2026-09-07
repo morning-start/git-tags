@@ -18,6 +18,8 @@ go build -o git-tags main.go        # 或直接下载 release 二进制
 ./git-tags patch                    # 递增 patch、同步全部文件、创建 tag
 ```
 
+> 提示：如果 PATH 里的 `git-tags` 还是旧版本（`-h` 里看不到 `check` / `sync` / `set` / `plugins`），用新构建替换——`go build -o git-tags.exe .` 后把 `git-tags.exe` 复制到 PATH 中的目录，或直接使用本地二进制。
+
 `check` 会为每个激活的 provider 打印一行：
 
 ```text
@@ -42,6 +44,8 @@ node       0.6.1        ✓
 
 ## 命令
 
+`git-tags -h` 按两组展示：**Git 管理**（`ls` / `patch` / `minor` / `major` / `push` / `del`）与**插件与版本管理**（`check` / `sync` / `set` / `plugins`）。
+
 | 命令 | 作用 |
 |------|------|
 | `ls` | 列出所有 tag |
@@ -49,10 +53,13 @@ node       0.6.1        ✓
 | `check` | 校验每个 provider 是否与 tag 一致 |
 | `sync` | 把 tag 版本写回所有可写文件 |
 | `set 1.4.0` | 直接指定版本（可选创建 tag） |
-| `push` / `del` | 推送 / 删除远端 tag |
+| `push` | 推送最新 tag 到远端 |
+| `del` | 删除最新 tag，并默认把版本文件**回滚**到新的最新 tag（无更早 tag 时只删 tag、不动文件） |
 | `plugins list` / `validate` | 列出与校验 Lua 插件 |
 
 常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--commit` 把版本文件随 tag 一起提交；`--no-tag` 只改文件不建 tag；`-p, --push` 打 tag 后推送远端。
+
+`set` 定向用法：`git-tags set 1.4.0 --framework flutter` 只把 flutter 的版本文件改成 1.4.0（**不创建 tag**），适合只想动其中一个框架的场景；定向改动由之后的全量 `set` / `patch` 统一收口到 git tag。
 
 ## 配置
 

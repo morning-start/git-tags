@@ -215,15 +215,17 @@ var SyncCmd = &cobra.Command{
 var SetCmd = &cobra.Command{
 	Use:   "set <version>",
 	Short: "Set the project version explicitly",
-	Long:  "Set a new version, sync it to all providers, and optionally create a tag.",
-	Args:  cobra.ExactArgs(1),
+	Long: "Set a new version, sync it to all providers, and optionally create a tag.\n" +
+		"Use --framework to update only one provider without creating a tag.",
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		commit, _ := cmd.Flags().GetBool("commit")
 		noTag, _ := cmd.Flags().GetBool("no-tag")
 		push, _ := cmd.Flags().GetBool("push")
+		framework, _ := cmd.Flags().GetString("framework")
 		return engine.Set(newContext(), args[0], core.Options{
-			DryRun: dryRun, Commit: commit, NoTag: noTag, Push: push,
+			DryRun: dryRun, Commit: commit, NoTag: noTag, Push: push, TargetFramework: framework,
 		})
 	},
 }
@@ -243,6 +245,7 @@ func init() {
 	DeleteCmd.Flags().StringP("branch", "b", "origin", "Specify the remote branch to delete tags")
 	SyncCmd.Flags().Bool("dry-run", false, "Preview changes without applying them")
 	SetCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
+	SetCmd.Flags().String("framework", "", "Only update the specified provider (e.g. flutter); no tag is created")
 	SetCmd.Flags().Bool("dry-run", false, "Preview changes without applying them")
 	SetCmd.Flags().Bool("commit", false, "Commit version changes together with the tag")
 	SetCmd.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
@@ -252,6 +255,21 @@ func init() {
 		c.Flags().Bool("commit", false, "Commit version changes together with the tag")
 		c.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
 	}
+
+	// 命令分组：Git 管理（原 git tag 命令集）vs 插件与版本管理
+	RootCmd.AddGroup(
+		&cobra.Group{ID: "git", Title: "Git 管理"},
+		&cobra.Group{ID: "plugin", Title: "插件与版本管理"},
+	)
+	ListCmd.GroupID = "git"
+	PatchCmd.GroupID = "git"
+	MinorCmd.GroupID = "git"
+	MajorCmd.GroupID = "git"
+	PushCmd.GroupID = "git"
+	DeleteCmd.GroupID = "git"
+	CheckCmd.GroupID = "plugin"
+	SyncCmd.GroupID = "plugin"
+	SetCmd.GroupID = "plugin"
 
 	RootCmd.AddCommand(ListCmd, PatchCmd, MinorCmd, MajorCmd, PushCmd, DeleteCmd, CheckCmd, SyncCmd, SetCmd)
 }

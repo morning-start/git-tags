@@ -78,6 +78,7 @@ var PluginsValidateCmd = &cobra.Command{
 }
 
 func init() {
+	PluginsCmd.GroupID = "plugin"
 	PluginsCmd.AddCommand(PluginsListCmd, PluginsValidateCmd)
 	RootCmd.AddCommand(PluginsCmd)
 }
