@@ -99,6 +99,10 @@ Hook 围绕 bump 流程执行（`pre_bump` → 写文件 → `post_bump` → 建
 - 锁文件**只校验、绝不写入**。bump 之后运行你的工具链（`cargo build`、`flutter pub get`、`uv sync`）重新生成，再 `check` 一次。
 - Flutter 的 `X.Y.Z+build`：写入时保留 build 号，比较时使用基础版本。
 
+## 友情链接
+
+- [LINUX DO](https://linux.do)
+
 ## License
 
 [MIT](LICENSE)
