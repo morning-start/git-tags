@@ -6,14 +6,21 @@ import (
 	"strings"
 )
 
-type Runner struct{}
+// Runner 执行 git 命令；可通过 SetDir 指定工作目录（项目根）。
+type Runner struct {
+	dir string
+}
 
 func NewRunner() *Runner {
 	return &Runner{}
 }
 
+// SetDir 设置 git 命令的工作目录（通常为项目根）。
+func (r *Runner) SetDir(dir string) { r.dir = dir }
+
 func (r *Runner) Run(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+	cmd.Dir = r.dir
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
 }
