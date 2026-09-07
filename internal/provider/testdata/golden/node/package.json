@@ -1,0 +1,11 @@
+{
+  "name": "my-node-app",
+  "version": "1.9.9",
+  "description": "a test node app",
+  "scripts": {
+    "test": "echo ok"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}

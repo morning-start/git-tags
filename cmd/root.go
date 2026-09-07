@@ -23,7 +23,12 @@ func loadConfig() *config.Config {
 
 var (
 	cfg    = loadConfig()
-	engine = core.New(cfg)
+	engine = core.New(cfg,
+		provider.NewTauri(),
+		provider.NewFlutter(),
+		provider.NewUV(),
+		provider.NewNode(),
+	)
 )
 
 // newContext 构造 provider 执行上下文：项目根为当前目录，日志输出到 stdout。
