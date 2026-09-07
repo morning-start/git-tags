@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="360" viewBox="0 0 1200 360"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">git-tags —— 一条命令让 git tag 与所有版本文件保持同步</title>
+  <desc id="hero-desc">终端风格首图：git-tags 名称、一句价值说明，以及一份所有 provider 与 tag 保持同步的 check 输出。</desc>
+
+  <defs>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    </style>
+  </defs>
+
+  <!-- background -->
+  <rect width="1200" height="360" rx="20" fill="#0B0D10"/>
+
+  <!-- subtle structure rule -->
+  <line x1="676" y1="64" x2="676" y2="312" stroke="#23262C" stroke-width="1"/>
+
+  <!-- ===== left: title block ===== -->
+  <g transform="translate(64 0)">
+    <text class="sans" x="0" y="88" font-size="22" fill="#8A919C">版本同步 CLI · Lua 插件</text>
+
+    <text class="sans" x="0" y="168" font-size="76" font-weight="700" fill="#E6E9EE">git-tags</text>
+
+    <text class="sans" x="0" y="224" font-size="26" fill="#AEB4BD">git tag 是唯一权威源，</text>
+    <text class="sans" x="0" y="258" font-size="26" fill="#AEB4BD">所有版本文件一次同步。</text>
+
+    <text class="mono" x="0" y="302" font-size="20" fill="#8A919C">GO · TAURI / FLUTTER / UV / NODE · MIT</text>
+
+    <!-- prompt + tag pill motif -->
+    <text class="mono" x="0" y="334" font-size="22" fill="#E6E9EE">
+      <tspan fill="#7EE787">❯</tspan> ./git-tags patch
+    </text>
+    <rect x="286" y="314" width="118" height="34" rx="17" fill="none" stroke="#7EE787" stroke-width="1.5"/>
+    <text class="mono" x="345" y="337" font-size="20" fill="#7EE787" text-anchor="middle">v0.6.1</text>
+  </g>
+
+  <!-- ===== right: terminal proof ===== -->
+  <g transform="translate(700 0)">
+    <rect x="0" y="56" width="436" height="260" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+
+    <!-- window title bar -->
+    <circle cx="24" cy="80" r="6" fill="#3B4048"/>
+    <circle cx="48" cy="80" r="6" fill="#3B4048"/>
+    <circle cx="72" cy="80" r="6" fill="#3B4048"/>
+    <text class="mono" x="218" y="86" font-size="20" fill="#8A919C" text-anchor="middle">git-tags check</text>
+    <line x1="0" y1="102" x2="436" y2="102" stroke="#23262C" stroke-width="1"/>
+
+    <!-- check output -->
+    <g class="mono" font-size="22">
+      <text x="28" y="142" fill="#E6E9EE"><tspan fill="#8A919C">$</tspan> git-tags check</text>
+      <text x="28" y="172"><tspan fill="#8A919C">git</tspan><tspan fill="#E6E9EE">     0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="202"><tspan fill="#8A919C">tauri</tspan><tspan fill="#E6E9EE">   0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="232"><tspan fill="#8A919C">flutter</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="262"><tspan fill="#8A919C">uv</tspan><tspan fill="#E6E9EE">      0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="292"><tspan fill="#8A919C">node</tspan><tspan fill="#E6E9EE">    0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+    </g>
+  </g>
+</svg>

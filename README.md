@@ -1,132 +1,81 @@
-# Git Tags Tool
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="git-tags —— 一条命令让 git tag 与所有版本文件保持同步">
+</p>
 
-## Introduction
+# git-tags
 
-`git-tags` is a tool for managing project versions and Git tags. It synchronizes a single version across multiple project files, so you no longer have to edit them by hand:
+**一条命令让项目版本与 git tag 永远保持一致。** git tag 是唯一权威源：`git-tags` 把同一个版本写入项目的所有版本文件，然后创建 tag——发布新版本再也不用手动改五个文件。
 
-- **git tag** is the single source of truth (canonical version)
-- Built-in support for common project types: **tauri** (Cargo.toml + tauri.conf.json), **uv python** (pyproject.toml), **flutter** (pubspec.yaml), **node** (package.json)
-- **Lua plugins** let you extend version sync to any project type without touching Go code
-- Hook plugins can run custom logic around a version bump (e.g. update CHANGELOG)
+- **零安装开箱即用** —— 内置 tauri、flutter、uv python、node 支持（Lua 插件已内嵌进二进制，无需任何安装）
+- **Lua 可扩展** —— 一个 `.lua` 文件即可支持任意项目结构，无需改 Go 代码
+- **锁文件只读** —— `Cargo.lock`、`pubspec.lock`、`uv.lock` 只做一致性校验、绝不写入（由你的工具链重新生成）
 
-## Installation
-
-This project depends on Go 1.24.4 and the following libraries:
-
-- github.com/Masterminds/semver/v3 v3.3.1
-- github.com/spf13/cobra v1.6.1
-- github.com/BurntSushi/toml v1.4.0
-- github.com/yuin/gopher-lua v1.1.1
-
-After cloning the repository, run the following command in the project root directory to build:
+## 快速开始
 
 ```bash
-go build -o git-tags main.go
+go build -o git-tags main.go        # 或直接下载 release 二进制
+./git-tags check                    # 检查 tag 与所有版本文件是否一致
+./git-tags patch                    # 递增 patch、同步全部文件、创建 tag
 ```
 
-## Commands
+`check` 会为每个激活的 provider 打印一行：
 
-### ls
-Display all tags.
-```bash
-./git-tags ls
+```text
+git        0.6.1        ✓
+tauri      0.6.1        ✓
+node       0.6.1        ✓
 ```
 
-### patch / minor / major
-Increment the version and sync it to all project files, then create a new tag.
-```bash
-./git-tags patch
-./git-tags minor
-./git-tags major
-```
+出现任何 `✗` 都说明某个文件与 tag 不一致——先运行 `sync` 对齐，再 bump。
 
-Extra flags:
+## 工作原理
 
-| Flag | Description |
-|------|-------------|
-| `-p, --push` | Push the tag to the remote after creating it |
-| `--dry-run` | Preview every file change (`old → new`) without applying anything |
-| `--commit` | Commit all version file changes together with the tag |
-| `--no-tag` | Only update version files, do not create a tag |
+一个源头，多处输出：
 
-### check
-Compare every active provider's version with the canonical git tag and report inconsistencies.
-```bash
-./git-tags check
-```
+<p align="center">
+  <img src="./assets/readme/sync-flow.svg" width="100%" alt="git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件；锁文件只校验不写入">
+</p>
 
-### sync
-Write the canonical version (latest git tag) back to all writable files of every provider.
-```bash
-./git-tags sync          # apply
-./git-tags sync --dry-run  # preview
-```
+1. `git-tags patch` 读取**最新 git tag** 作为权威版本。
+2. 每个激活的 provider 把该版本写入自己的文件（`package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml`、`pubspec.yaml`、`pyproject.toml` …）。
+3. 创建新 tag——可顺带提交（`--commit`）与推送（`--push`）。
 
-### set
-Set an explicit version, sync it to all providers and optionally create a tag.
-```bash
-./git-tags set 1.4.0
-./git-tags set 1.4.0 --no-tag
-```
+## 命令
 
-### push
-Push tags to a remote repository. You can use the `-b` parameter to specify the branch, with a default value of `origin`.
-```bash
-./git-tags push -b origin
-```
+| 命令 | 作用 |
+|------|------|
+| `ls` | 列出所有 tag |
+| `patch` / `minor` / `major` | 递增版本、同步所有文件、创建 tag |
+| `check` | 校验每个 provider 是否与 tag 一致 |
+| `sync` | 把 tag 版本写回所有可写文件 |
+| `set 1.4.0` | 直接指定版本（可选创建 tag） |
+| `push` / `del` | 推送 / 删除远端 tag |
+| `plugins list` / `validate` | 列出与校验 Lua 插件 |
 
-### del
-Delete the latest tag. You can use the `-b` parameter to specify a remote branch to delete the remote tag, with a default value of `origin`. If the `-b` parameter is not specified, the local tag will be deleted.
-```bash
-./git-tags del -b origin
-```
+常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--commit` 把版本文件随 tag 一起提交；`--no-tag` 只改文件不建 tag；`-p, --push` 打 tag 后推送远端。
 
-### plugins
-List discovered Lua plugins and validate plugin scripts.
-```bash
-./git-tags plugins list
-./git-tags plugins validate            # validate all discovered plugins
-./git-tags plugins validate my.lua     # validate a specific file
-```
+## 配置
 
-## Configuration
-
-Optional `.git-tags.toml` in the project root:
+项目根目录下可选的 `.git-tags.toml`：
 
 ```toml
 [core]
-# enabled = ["git", "tauri", "uv", "flutter", "node"]  # default: all
 tag_prefix = "v"
+enabled = ["git", "tauri"]     # 只启用这些 provider（默认全部）
 
-# mark a provider read-only: checked for consistency but never written
 [provider.uv]
-writable = false
+writable = false               # 只校验、绝不写入
 ```
 
-Notes:
+## Lua 插件
 
-- Lock files (`Cargo.lock`, `uv.lock`, `pubspec.lock`, `package-lock.json`) are **read-only checks**: they are verified for consistency but never written by this tool — let your toolchain (`cargo build`, `uv sync`, `flutter pub get`) regenerate them, then run `check` again.
-- Flutter versions (`X.Y.Z+build`): the build number is preserved on write; bump compares only the base version.
-
-## Lua Plugins
-
-Plugins live in:
-
-- Global: `%APPDATA%/git-tags/plugins/` (Windows) or `~/.config/git-tags/plugins/` (Linux/macOS)
-- Project: `<repo>/.git-tags/plugins/`
-
-Each plugin is a single `.lua` file declaring a global `plugin` table. Same-named project plugins override global ones; plugins are ordered by `priority` (higher first). A broken plugin is skipped with an error (visible in `plugins list`) and never blocks others.
-
-### Provider plugin
-
-Extends version sync to a new project type:
+一个 `.lua` 文件就是一个 provider 或 hook。放进 `<repo>/.git-tags/plugins/` 或全局插件目录即自动加载；同名插件会覆盖内置实现。
 
 ```lua
 plugin = {
-  name = "myapp",            -- unique id
+  name = "myapp",
   type = "provider",
-  priority = 50,             -- default 50
-  description = "VERSION file provider",
+  priority = 50,
 }
 
 function plugin.detect(project)
@@ -143,41 +92,13 @@ function plugin.write(project, version)
 end
 ```
 
-### Hook plugin
+Hook 围绕 bump 流程执行（`pre_bump` → 写文件 → `post_bump` → 建 tag → `post_tag`）。沙箱化的 `gt` API——文件访问仅限项目内、semver 辅助函数、git tag 查询——保证脚本安全：5 秒超时、禁用 `os`/`io`/`package`、panic 不会导致工具崩溃。
 
-Runs around the bump pipeline (`pre_bump` → write files → `post_bump` → `pre_tag` → create tag → `post_tag`):
+## 注意事项
 
-```lua
-plugin = {
-  name = "changelog",
-  type = "hook",
-  priority = 10,
-}
-
-function plugin.pre_bump(from, to)
-  local content = gt.read_file("CHANGELOG.md")
-  gt.write_file("CHANGELOG.md", string.format("## %s\n\n", to) .. content)
-end
-```
-
-### Host API (`gt`)
-
-| API | Description |
-|-----|-------------|
-| `gt.project` | table with `root` (absolute project path) |
-| `gt.read_file(path)` / `gt.write_file(path, content)` | read/write files **inside the project only** (path whitelist) |
-| `gt.log(msg)` | print a user-visible log line |
-| `gt.semver.parse(v)` | parse → `{major, minor, patch, prerelease, metadata, str}` or `nil` |
-| `gt.semver.inc(v, "patch"\|"minor"\|"major")` | increment → new version string |
-| `gt.semver.compare(a, b)` | `-1` / `0` / `1` |
-| `gt.git.latest_tag()` | latest git tag (with prefix) |
-
-The sandbox removes `os`, `io`, `package`, `debug` libraries and dangerous base functions (`dofile`, `loadfile`, `load`, `loadstring`); scripts are killed after a 5 second timeout, and panics never crash the tool.
-
-## Contribution
-
-If you have any suggestions for improvement or find a bug, please feel free to submit an issue or a pull request.
+- 锁文件**只校验、绝不写入**。bump 之后运行你的工具链（`cargo build`、`flutter pub get`、`uv sync`）重新生成，再 `check` 一次。
+- Flutter 的 `X.Y.Z+build`：写入时保留 build 号，比较时使用基础版本。
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)

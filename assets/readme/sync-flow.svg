@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="340" viewBox="0 0 1200 340"
+     role="img" aria-labelledby="flow-title flow-desc">
+  <title id="flow-title">同步流程 —— git tag 驱动所有 provider；锁文件只校验</title>
+  <desc id="flow-desc">示意图：git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件 provider；锁文件标注为只读。</desc>
+
+  <defs>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="340" rx="20" fill="#0B0D10"/>
+
+  <!-- eyebrow -->
+  <text class="sans" x="64" y="64" font-size="20" fill="#8A919C">单一权威源</text>
+
+  <!-- canonical source node -->
+  <rect x="500" y="92" width="200" height="66" rx="12" fill="#0E1512" stroke="#7EE787" stroke-width="1.5"/>
+  <text class="mono" x="600" y="120" font-size="20" fill="#8A919C" text-anchor="middle">git tag</text>
+  <text class="mono" x="600" y="146" font-size="24" font-weight="700" fill="#7EE787" text-anchor="middle">v1.2.3</text>
+
+  <!-- provider pills -->
+  <g>
+    <rect x="64"  y="196" width="170" height="52" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+    <rect x="258" y="196" width="170" height="52" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+    <rect x="452" y="196" width="170" height="52" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+    <rect x="646" y="196" width="170" height="52" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+    <rect x="840" y="196" width="170" height="52" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+
+    <text class="mono" x="149" y="228" font-size="21" fill="#E6E9EE" text-anchor="middle">tauri</text>
+    <text class="mono" x="343" y="228" font-size="21" fill="#E6E9EE" text-anchor="middle">flutter</text>
+    <text class="mono" x="537" y="228" font-size="21" fill="#E6E9EE" text-anchor="middle">uv</text>
+    <text class="mono" x="731" y="228" font-size="21" fill="#E6E9EE" text-anchor="middle">node</text>
+    <text class="mono" x="915" y="228" font-size="21" fill="#E6E9EE" text-anchor="middle">Lua 插件</text>
+  </g>
+
+  <!-- arrows from source to each provider -->
+  <g stroke="#3B4048" stroke-width="1.5" fill="#3B4048">
+    <line x1="600" y1="158" x2="149" y2="196"/>
+    <line x1="600" y1="158" x2="343" y2="196"/>
+    <line x1="600" y1="158" x2="537" y2="196"/>
+    <line x1="600" y1="158" x2="731" y2="196"/>
+    <line x1="600" y1="158" x2="915" y2="196"/>
+  </g>
+
+  <!-- lock files: validated only -->
+  <text class="sans" x="64" y="290" font-size="18" fill="#8A919C">锁文件 — 只校验，不写入</text>
+
+  <g>
+    <rect x="640" y="272" width="150" height="40" rx="20" fill="none" stroke="#8A919C" stroke-width="1" stroke-dasharray="5 4"/>
+    <rect x="812" y="272" width="150" height="40" rx="20" fill="none" stroke="#8A919C" stroke-width="1" stroke-dasharray="5 4"/>
+    <rect x="984" y="272" width="150" height="40" rx="20" fill="none" stroke="#8A919C" stroke-width="1" stroke-dasharray="5 4"/>
+    <text class="mono" x="715" y="297" font-size="18" fill="#8A919C" text-anchor="middle">Cargo.lock</text>
+    <text class="mono" x="887" y="297" font-size="18" fill="#8A919C" text-anchor="middle">pubspec.lock</text>
+    <text class="mono" x="1059" y="297" font-size="18" fill="#8A919C" text-anchor="middle">uv.lock</text>
+  </g>
+</svg>
