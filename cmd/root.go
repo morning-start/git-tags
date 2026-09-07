@@ -59,20 +59,10 @@ func RegisterEmbeddedProvider(name, content string) {
 	engine = newEngine()
 }
 
-// newEngine 组装引擎：内置 provider + Lua provider 插件 + Lua hook 插件。
-// provider 按名解析，同名时 Lua 插件覆盖：用户插件 > 内嵌插件 > 内置 Go provider。
+// newEngine 组装引擎：provider 只来自 Lua 插件（单轨），按名解析、逐级覆盖：
+// 用户插件 > 内嵌插件（embeddedProviders 由 main 注入）。git provider 由引擎
+// 固定作为权威源（不参与注册）；Lua hook 插件单独挂载到 bump 流程。
 func newEngine() *core.Engine {
-	// 内置 Go provider（Lua 同名插件会覆盖它们）
-	goBuiltins := []struct {
-		name string
-		p    provider.Provider
-	}{
-		{"tauri", provider.NewTauri()},
-		{"flutter", provider.NewFlutter()},
-		{"uv", provider.NewUV()},
-		{"node", provider.NewNode()},
-	}
-
 	// 用户 Lua provider 名（最高优先级）
 	userProviders := map[string]bool{}
 	for _, p := range plugins {
@@ -81,11 +71,8 @@ func newEngine() *core.Engine {
 		}
 	}
 
-	// 按名解析最终 provider 列表：内置 → 内嵌 → 用户（逐级覆盖）
+	// 按名解析最终 provider 列表：内嵌插件 → 用户插件（逐级覆盖）
 	byName := map[string]provider.Provider{}
-	for _, b := range goBuiltins {
-		byName[b.name] = b.p
-	}
 	for name, content := range embeddedProviders {
 		if userProviders[name] {
 			continue // 用户插件已覆盖，内嵌不再注册
