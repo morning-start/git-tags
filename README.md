@@ -57,7 +57,9 @@ node       0.6.1        ✓
 | `del` | 删除最新 tag，并默认把版本文件**回滚**到新的最新 tag（无更早 tag 时只删 tag、不动文件） |
 | `plugins list` / `validate` | 列出与校验 Lua 插件 |
 
-常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--commit` 把版本文件随 tag 一起提交；`--no-tag` 只改文件不建 tag；`-p, --push` 打 tag 后推送远端。
+常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--no-tag` 只改文件（不提交、不建 tag）；`-p, --push` 打 tag 后推送远端。提交是发布流程的强制步骤，不可关闭。
+
+> 默认发布流程：要求工作区干净（有未提交改动会报错）→ 写版本文件 → 自动提交（`chore(release): bump to <tag>`）→ 打 tag。tag 始终指向包含新版本号的 commit；`--no-tag` 则只改文件、不提交不打 tag，改动留待自行 review 后提交。
 
 `set` 定向用法：`git-tags set 1.4.0 --framework flutter` 只把 flutter 的版本文件改成 1.4.0（**不创建 tag**），适合只想动其中一个框架的场景；定向改动由之后的全量 `set` / `patch` 统一收口到 git tag。
 

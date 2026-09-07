@@ -148,10 +148,9 @@ func newBumpCmd(name, level string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			push, _ := cmd.Flags().GetBool("push")
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
-			commit, _ := cmd.Flags().GetBool("commit")
 			noTag, _ := cmd.Flags().GetBool("no-tag")
 			return engine.Bump(newContext(), level, core.Options{
-				Push: push, DryRun: dryRun, Commit: commit, NoTag: noTag,
+				Push: push, DryRun: dryRun, NoTag: noTag,
 			})
 		},
 	}
@@ -213,12 +212,11 @@ var SetCmd = &cobra.Command{
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		commit, _ := cmd.Flags().GetBool("commit")
 		noTag, _ := cmd.Flags().GetBool("no-tag")
 		push, _ := cmd.Flags().GetBool("push")
 		framework, _ := cmd.Flags().GetString("framework")
 		return engine.Set(newContext(), args[0], core.Options{
-			DryRun: dryRun, Commit: commit, NoTag: noTag, Push: push, TargetFramework: framework,
+			DryRun: dryRun, NoTag: noTag, Push: push, TargetFramework: framework,
 		})
 	},
 }
@@ -240,12 +238,10 @@ func init() {
 	SetCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
 	SetCmd.Flags().String("framework", "", "Only update the specified provider (e.g. flutter); no tag is created")
 	SetCmd.Flags().Bool("dry-run", false, "Preview changes without applying them")
-	SetCmd.Flags().Bool("commit", false, "Commit version changes together with the tag")
 	SetCmd.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
 	for _, c := range []*cobra.Command{PatchCmd, MinorCmd, MajorCmd} {
 		c.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
 		c.Flags().Bool("dry-run", false, "Preview changes without applying them")
-		c.Flags().Bool("commit", false, "Commit version changes together with the tag")
 		c.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
 	}
 

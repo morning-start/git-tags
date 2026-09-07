@@ -103,6 +103,16 @@ func (r *Runner) DeleteRemoteTag(branch, tag string) error {
 	return nil
 }
 
+// HasUncommittedChanges 检查工作区是否有未提交改动（含未跟踪文件）。
+// 用 git status --porcelain 判断：输出为空表示工作区干净。
+func (r *Runner) HasUncommittedChanges() (bool, error) {
+	output, err := r.Run("status", "--porcelain")
+	if err != nil {
+		return false, fmt.Errorf("error checking git status: %w\n%s", err, output)
+	}
+	return output != "", nil
+}
+
 // CommitVersionChange 暂存全部改动并提交；无暂存内容时静默跳过（如 --commit
 // 但版本文件没有实际变化的情况）。
 func (r *Runner) CommitVersionChange(message string) error {

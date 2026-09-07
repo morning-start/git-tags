@@ -17,8 +17,7 @@ import (
 // Options 控制一次 bump/set 的行为。
 type Options struct {
 	DryRun bool   // 只预览，不产生任何改动
-	Commit bool   // 版本改动与 tag 自动提交到同一 commit
-	NoTag  bool   // 只改文件，不创建 tag
+	NoTag  bool   // 只改文件，不提交、不创建 tag
 	Push   bool   // 创建 tag 后推送到远程
 	Branch string // push 目标分支，默认 "origin"
 	// TargetFramework 定向模式（set --framework）：只把版本写入指定 provider，
@@ -194,6 +193,20 @@ func (e *Engine) EnsureInSync(ctx *provider.Context) error {
 	return nil
 }
 
+// ensureCleanWorktree 校验工作区干净（无未提交/未跟踪改动）。bump/set 默认
+// 会提交版本文件改动，若工作区混有其它改动会被 git add -A 一并卷入发布提交，
+// 因此提交前必须先保持工作区干净。
+func (e *Engine) ensureCleanWorktree() error {
+	dirty, err := e.git.HasUncommittedChanges()
+	if err != nil {
+		return err
+	}
+	if dirty {
+		return fmt.Errorf("工作区有未提交的改动；请先提交或 stash 后再运行（git-tags 会提交版本文件改动并打 tag）")
+	}
+	return nil
+}
+
 // Sync 以权威源版本写回所有激活 provider 的可写 target。
 func (e *Engine) Sync(ctx *provider.Context, dryRun bool) error {
 	e.git.SetRoot(ctx.Project.Root)
@@ -222,10 +235,17 @@ func (e *Engine) Sync(ctx *provider.Context, dryRun bool) error {
 }
 
 // Bump 按 level（patch/minor/major）递增版本：先校验一致性，再写回所有
-// provider、创建 tag，可选提交与推送。流程中按序触发 hook：
-// pre_bump → 写文件 → post_bump → pre_tag → 建 tag → post_tag。
+// provider、提交版本改动、创建 tag，可选推送。发布（非 --no-tag）流程要求
+// 工作区先保持干净（提交是强制步骤，避免 git add -A 把无关改动卷入发布提交），
+// 然后写文件 → 提交 → 建 tag。流程中按序触发 hook：
+// pre_bump → 写文件 → post_bump → 提交 → pre_tag → 建 tag → post_tag。
 func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 	e.git.SetRoot(ctx.Project.Root)
+	if !opts.NoTag && !opts.DryRun {
+		if err := e.ensureCleanWorktree(); err != nil {
+			return err
+		}
+	}
 	canonical, err := e.git.Read(ctx)
 	if err != nil {
 		return err
@@ -286,12 +306,11 @@ func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 	if err := e.runHooks(ctx, "post_bump", canonical, newVersion); err != nil {
 		return err
 	}
-	if opts.Commit {
+	if !opts.NoTag {
+		// 发布流程强制提交：保证 tag 指向包含新版本号的 commit。
 		if err := e.git.CommitVersionChange(fmt.Sprintf("chore(release): bump to %s", tag)); err != nil {
 			return err
 		}
-	}
-	if !opts.NoTag {
 		if err := e.runHooks(ctx, "pre_tag", "", newVersion); err != nil {
 			return err
 		}
@@ -359,6 +378,14 @@ func (e *Engine) Set(ctx *provider.Context, version string, opts Options) error 
 		return e.setFramework(ctx, opts.TargetFramework, normalized, opts)
 	}
 
+	// 与 Bump 一致：发布（非 --no-tag）要求工作区干净，避免无关改动卷入发布提交；
+	// dry-run 只是预览，不校验工作区状态。
+	if !opts.NoTag && !opts.DryRun {
+		if err := e.ensureCleanWorktree(); err != nil {
+			return err
+		}
+	}
+
 	if opts.DryRun {
 		ctx.Logf("[dry-run] 将设置版本 %s", normalized)
 		for _, p := range e.activeProviders(ctx) {
@@ -386,12 +413,11 @@ func (e *Engine) Set(ctx *provider.Context, version string, opts Options) error 
 		ctx.Logf("%s: 已更新到 %s", p.Name(), normalized)
 	}
 
-	if opts.Commit {
+	if !opts.NoTag {
+		// 发布流程强制提交：保证 tag 指向包含新版本号的 commit。
 		if err := e.git.CommitVersionChange(fmt.Sprintf("chore(release): bump to %s", tag)); err != nil {
 			return err
 		}
-	}
-	if !opts.NoTag {
 		if err := e.git.CreateTag(tag); err != nil {
 			return err
 		}

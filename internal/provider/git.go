@@ -69,6 +69,11 @@ func (p *GitProvider) DeleteRemoteTag(branch, tag string) error {
 	return p.runner.DeleteRemoteTag(branch, tag)
 }
 
+// HasUncommittedChanges 检查工作区是否有未提交改动（含未跟踪文件）。
+func (p *GitProvider) HasUncommittedChanges() (bool, error) {
+	return p.runner.HasUncommittedChanges()
+}
+
 // CommitVersionChange 暂存全部改动并提交（无暂存内容时静默跳过）。
 func (p *GitProvider) CommitVersionChange(message string) error {
 	return p.runner.CommitVersionChange(message)
