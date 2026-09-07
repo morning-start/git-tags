@@ -85,8 +85,11 @@ func (r *Runner) DeleteLocalTag(tag string) error {
 func (r *Runner) DeleteRemoteTag(branch, tag string) error {
 	output, err := r.Run("push", branch, "--delete", tag)
 	if err != nil {
-		if strings.Contains(output, "exit status 1") {
-			fmt.Printf("remote %s tag does not exist\n", tag)
+		// 远端本就没有该 tag（可能尚未推送过）：正常现象，跳过远端删除
+		// 不报错，继续执行本地删除与回滚。git 标准错误输出为
+		// "remote ref does not exist"（并伴随 "unable to delete ..."）。
+		if strings.Contains(output, "remote ref does not exist") || strings.Contains(output, "unable to delete") {
+			fmt.Printf("remote %s tag %s does not exist, skipping remote delete\n", branch, tag)
 			return nil
 		}
 		// 未配置该 remote（纯本地仓库）：跳过远端删除，不阻断本地删除与回滚

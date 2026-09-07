@@ -124,16 +124,17 @@ func (e *Engine) PushTag(branch, root string) error {
 	return e.git.PushTag(branch, e.git.LatestTag())
 }
 
-// DeleteLatestTag 删除本地与远程最新 tag；删除后若存在更早 tag，默认把版本
-// 文件回滚同步到新最新 tag（写文件但不自动 commit，沿用 opt-in 哲学）；
-// 无更早 tag 时只删 tag、不写文件。
+// DeleteLatestTag 删除最新 tag：先远程、后本地。远程删除只有 not exist
+// （尚未推送）被视为合理并跳过，其它错误立即返回、保留本地 tag；本地删除
+// 失败同样返回。删除后若存在更早 tag，默认把版本文件回滚同步到新最新 tag
+// （写文件但不自动 commit，沿用 opt-in 哲学）；无更早 tag 时只删 tag、不写文件。
 func (e *Engine) DeleteLatestTag(branch, root string) error {
 	e.git.SetRoot(root)
 	old := e.git.LatestTag()
-	if err := e.git.DeleteLocalTag(old); err != nil {
+	if err := e.git.DeleteRemoteTag(branch, old); err != nil {
 		return err
 	}
-	if err := e.git.DeleteRemoteTag(branch, old); err != nil {
+	if err := e.git.DeleteLocalTag(old); err != nil {
 		return err
 	}
 
