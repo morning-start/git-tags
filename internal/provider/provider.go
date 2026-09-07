@@ -48,3 +48,11 @@ type Provider interface {
 	// Priority 决定多个 provider 同时激活时的顺序，数值大的优先。
 	Priority() int
 }
+
+// Hook 是 bump 流程的扩展点，由引擎在对应阶段调用。
+// stage 取值：pre_bump / post_bump（参数 from → to）、pre_tag / post_tag（参数 to）。
+type Hook interface {
+	Name() string
+	Priority() int
+	Run(ctx *Context, stage string, from, to string) error
+}

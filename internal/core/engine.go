@@ -34,6 +34,7 @@ type Engine struct {
 	cfg       *config.Config
 	git       *provider.GitProvider
 	providers []provider.Provider
+	hooks     []provider.Hook
 }
 
 // New 创建引擎；extras 为额外注册的 provider（内置项目类型、Lua 插件等）。
@@ -44,6 +45,22 @@ func New(cfg *config.Config, extras ...provider.Provider) *Engine {
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Priority() > all[j].Priority() })
 	e.providers = all
 	return e
+}
+
+// AddHooks 注册 bump 流程扩展点（按优先级降序执行）。
+func (e *Engine) AddHooks(hooks ...provider.Hook) {
+	e.hooks = append(e.hooks, hooks...)
+	sort.SliceStable(e.hooks, func(i, j int) bool { return e.hooks[i].Priority() > e.hooks[j].Priority() })
+}
+
+// runHooks 在指定阶段调用所有 hook；任一失败即中止。
+func (e *Engine) runHooks(ctx *provider.Context, stage, from, to string) error {
+	for _, h := range e.hooks {
+		if err := h.Run(ctx, stage, from, to); err != nil {
+			return fmt.Errorf("hook %s(%s) 失败: %w", h.Name(), stage, err)
+		}
+	}
+	return nil
 }
 
 // Git 返回权威源 provider，供命令层调用 git 操作。
@@ -66,7 +83,8 @@ func (e *Engine) ActiveProviders(ctx *provider.Context) []provider.Provider {
 }
 
 // ListTags 列出所有 tag。
-func (e *Engine) ListTags() error {
+func (e *Engine) ListTags(root string) error {
+	e.git.SetRoot(root)
 	out, err := e.git.ListTags()
 	if err != nil {
 		return err
@@ -76,15 +94,20 @@ func (e *Engine) ListTags() error {
 }
 
 // LatestTag 返回最新 tag 名（带前缀）。
-func (e *Engine) LatestTag() string { return e.git.LatestTag() }
+func (e *Engine) LatestTag(root string) string {
+	e.git.SetRoot(root)
+	return e.git.LatestTag()
+}
 
 // PushTag 推送最新 tag 到远程分支。
-func (e *Engine) PushTag(branch string) error {
+func (e *Engine) PushTag(branch, root string) error {
+	e.git.SetRoot(root)
 	return e.git.PushTag(branch, e.git.LatestTag())
 }
 
 // DeleteLatestTag 删除本地与远程最新 tag。
-func (e *Engine) DeleteLatestTag(branch string) error {
+func (e *Engine) DeleteLatestTag(branch, root string) error {
+	e.git.SetRoot(root)
 	tag := e.git.LatestTag()
 	if err := e.git.DeleteLocalTag(tag); err != nil {
 		return err
@@ -94,6 +117,7 @@ func (e *Engine) DeleteLatestTag(branch string) error {
 
 // Check 读取所有激活 provider 的版本并与权威源 git tag 比对，返回一致性报告。
 func (e *Engine) Check(ctx *provider.Context) ([]CheckItem, error) {
+	e.git.SetRoot(ctx.Project.Root)
 	canonical, err := e.git.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("读取权威版本失败: %w", err)
@@ -114,6 +138,7 @@ func (e *Engine) Check(ctx *provider.Context) ([]CheckItem, error) {
 
 // EnsureInSync 校验所有激活 provider 与权威源一致；不一致时返回错误并提示 sync。
 func (e *Engine) EnsureInSync(ctx *provider.Context) error {
+	e.git.SetRoot(ctx.Project.Root)
 	canonical, err := e.git.Read(ctx)
 	if err != nil {
 		return err
@@ -135,6 +160,7 @@ func (e *Engine) EnsureInSync(ctx *provider.Context) error {
 
 // Sync 以权威源版本写回所有激活 provider 的可写 target。
 func (e *Engine) Sync(ctx *provider.Context, dryRun bool) error {
+	e.git.SetRoot(ctx.Project.Root)
 	canonical, err := e.git.Read(ctx)
 	if err != nil {
 		return err
@@ -160,8 +186,10 @@ func (e *Engine) Sync(ctx *provider.Context, dryRun bool) error {
 }
 
 // Bump 按 level（patch/minor/major）递增版本：先校验一致性，再写回所有
-// provider、创建 tag，可选提交与推送。
+// provider、创建 tag，可选提交与推送。流程中按序触发 hook：
+// pre_bump → 写文件 → post_bump → pre_tag → 建 tag → post_tag。
 func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
+	e.git.SetRoot(ctx.Project.Root)
 	canonical, err := e.git.Read(ctx)
 	if err != nil {
 		return err
@@ -186,6 +214,9 @@ func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 	tag := e.git.TagFor(newVersion)
 
 	if err := e.EnsureInSync(ctx); err != nil {
+		return err
+	}
+	if err := e.runHooks(ctx, "pre_bump", canonical, newVersion); err != nil {
 		return err
 	}
 
@@ -216,13 +247,22 @@ func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 		ctx.Logf("%s: 已更新到 %s", p.Name(), newVersion)
 	}
 
+	if err := e.runHooks(ctx, "post_bump", canonical, newVersion); err != nil {
+		return err
+	}
 	if opts.Commit {
 		if err := e.git.CommitVersionChange(fmt.Sprintf("chore(release): bump to %s", tag)); err != nil {
 			return err
 		}
 	}
 	if !opts.NoTag {
+		if err := e.runHooks(ctx, "pre_tag", "", newVersion); err != nil {
+			return err
+		}
 		if err := e.git.CreateTag(tag); err != nil {
+			return err
+		}
+		if err := e.runHooks(ctx, "post_tag", "", newVersion); err != nil {
 			return err
 		}
 	}

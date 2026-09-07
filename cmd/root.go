@@ -3,11 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"git-tags/internal/config"
 	"git-tags/internal/core"
+	"git-tags/internal/lua"
 	"git-tags/internal/provider"
 )
 
@@ -21,15 +23,55 @@ func loadConfig() *config.Config {
 	return cfg
 }
 
+// absProjectRoot 返回当前目录的绝对路径（Lua 路径白名单与插件发现基准）。
+func absProjectRoot() string {
+	a, err := filepath.Abs(".")
+	if err != nil {
+		return "."
+	}
+	return a
+}
+
 var (
-	cfg    = loadConfig()
-	engine = core.New(cfg,
+	cfg     = loadConfig()
+	absRoot = absProjectRoot()
+	gitProv = newGitProvider()
+	plugins = lua.Discover(absRoot, gitProv.LatestTag)
+	engine  = newEngine()
+)
+
+// newGitProvider 创建绑定到项目根的 git provider（git 命令在项目内执行）。
+func newGitProvider() *provider.GitProvider {
+	g := provider.NewGitProvider(cfg.TagPrefix)
+	g.SetRoot(absRoot)
+	return g
+}
+
+// newEngine 组装引擎：内置 provider + Lua provider 插件 + Lua hook 插件。
+func newEngine() *core.Engine {
+	providers := []provider.Provider{
 		provider.NewTauri(),
 		provider.NewFlutter(),
 		provider.NewUV(),
 		provider.NewNode(),
-	)
-)
+	}
+	var hooks []provider.Hook
+	for _, p := range plugins {
+		if p.Err != nil {
+			continue
+		}
+		r := lua.NewRunner(absRoot, gitProv.LatestTag)
+		switch p.Kind {
+		case "provider":
+			providers = append(providers, lua.NewProvider(p, r))
+		case "hook":
+			hooks = append(hooks, lua.NewHook(p, r))
+		}
+	}
+	e := core.New(cfg, providers...)
+	e.AddHooks(hooks...)
+	return e
+}
 
 // newContext 构造 provider 执行上下文：项目根为当前目录，日志输出到 stdout。
 func newContext() *provider.Context {
@@ -52,7 +94,7 @@ var ListCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "(ls) Show all tags",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return engine.ListTags()
+		return engine.ListTags(absRoot)
 	},
 }
 
@@ -81,7 +123,7 @@ var PushCmd = &cobra.Command{
 	Short: "Push tags to remote",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch, _ := cmd.Flags().GetString("branch")
-		return engine.PushTag(branch)
+		return engine.PushTag(branch, absRoot)
 	},
 }
 
@@ -142,7 +184,7 @@ var DeleteCmd = &cobra.Command{
 	Short:   "(del) Delete the latest tag, remote and local",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch, _ := cmd.Flags().GetString("branch")
-		return engine.DeleteLatestTag(branch)
+		return engine.DeleteLatestTag(branch, absRoot)
 	},
 }
 
