@@ -6,6 +6,7 @@ package core
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 
@@ -20,6 +21,10 @@ type Options struct {
 	NoTag  bool   // 只改文件，不创建 tag
 	Push   bool   // 创建 tag 后推送到远程
 	Branch string // push 目标分支，默认 "origin"
+	// TargetFramework 定向模式（set --framework）：只把版本写入指定 provider，
+	// 不创建 tag、不 commit/push——单 provider 改动若建全局 tag 会立刻与其它
+	// provider 不一致；定向设置由后续全量 set/bump 统一收口到 tag。
+	TargetFramework string
 }
 
 // CheckItem 是 check 报告中的一行。
@@ -119,14 +124,30 @@ func (e *Engine) PushTag(branch, root string) error {
 	return e.git.PushTag(branch, e.git.LatestTag())
 }
 
-// DeleteLatestTag 删除本地与远程最新 tag。
+// DeleteLatestTag 删除本地与远程最新 tag；删除后若存在更早 tag，默认把版本
+// 文件回滚同步到新最新 tag（写文件但不自动 commit，沿用 opt-in 哲学）；
+// 无更早 tag 时只删 tag、不写文件。
 func (e *Engine) DeleteLatestTag(branch, root string) error {
 	e.git.SetRoot(root)
-	tag := e.git.LatestTag()
-	if err := e.git.DeleteLocalTag(tag); err != nil {
+	old := e.git.LatestTag()
+	if err := e.git.DeleteLocalTag(old); err != nil {
 		return err
 	}
-	return e.git.DeleteRemoteTag(branch, tag)
+	if err := e.git.DeleteRemoteTag(branch, old); err != nil {
+		return err
+	}
+
+	cur := e.git.LatestTagOrEmpty()
+	if cur == "" {
+		fmt.Printf("已删除 tag %s；项目无更早 tag，版本文件保持不变\n", old)
+		return nil
+	}
+	ctx := &provider.Context{
+		Project: &provider.Project{Root: root},
+		Log:     func(format string, args ...any) { fmt.Printf(format+"\n", args...) },
+	}
+	fmt.Printf("已删除 tag %s，回滚版本文件到 %s\n", old, cur)
+	return e.Sync(ctx, false)
 }
 
 // Check 读取所有激活 provider 的版本并与权威源 git tag 比对，返回一致性报告。
@@ -290,6 +311,39 @@ func (e *Engine) Bump(ctx *provider.Context, level string, opts Options) error {
 	return nil
 }
 
+// setFramework 定向设置：只把版本写入指定 provider，不创建 tag/commit/push
+// （单 provider 改动若建全局 tag 会立刻与其它 provider 不一致）。未激活或
+// 不存在时报错并列出当前激活的 provider；配置为只读的 provider 拒绝写入。
+func (e *Engine) setFramework(ctx *provider.Context, name, version string, opts Options) error {
+	var target provider.Provider
+	names := []string{}
+	for _, p := range e.activeProviders(ctx) {
+		if p == e.git {
+			continue
+		}
+		names = append(names, p.Name())
+		if p.Name() == name {
+			target = p
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("framework %q 未激活或不存在（当前激活: %s）", name, strings.Join(names, ", "))
+	}
+	if !e.cfg.ProviderWritable(name) {
+		return fmt.Errorf("provider %s 配置为只读，无法定向设置", name)
+	}
+	if opts.DryRun {
+		e.previewWrite(ctx, target, version)
+		return nil
+	}
+	if err := target.Write(ctx, version); err != nil {
+		return fmt.Errorf("写入 %s 失败: %w", name, err)
+	}
+	ctx.Logf("%s: 已定向更新到 %s", name, version)
+	ctx.Logf("仅更新了 %s，未创建 tag；如需发布请运行 git-tags set %s 全量同步", name, version)
+	return nil
+}
+
 // Set 显式设置版本：校验 semver、写回所有 provider，可选建 tag/推送。
 func (e *Engine) Set(ctx *provider.Context, version string, opts Options) error {
 	v, err := semver.NewVersion(version)
@@ -298,6 +352,11 @@ func (e *Engine) Set(ctx *provider.Context, version string, opts Options) error 
 	}
 	normalized := v.String()
 	tag := e.git.TagFor(normalized)
+
+	// 定向模式（--framework）：只写指定 provider，不建 tag/commit/push
+	if opts.TargetFramework != "" {
+		return e.setFramework(ctx, opts.TargetFramework, normalized, opts)
+	}
 
 	if opts.DryRun {
 		ctx.Logf("[dry-run] 将设置版本 %s", normalized)

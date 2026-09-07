@@ -52,6 +52,9 @@ func (p *GitProvider) ListTags() (string, error) { return p.runner.ListTags() }
 // LatestTag 返回最新 tag 名（带前缀），无 tag 时返回 prefix+"0.0.0"。
 func (p *GitProvider) LatestTag() string { return p.runner.GetLatestTag(p.prefix) }
 
+// LatestTagOrEmpty 返回最新 tag 名（带前缀）；无任何匹配 tag 时返回空串（不做兜底）。
+func (p *GitProvider) LatestTagOrEmpty() string { return p.runner.GetLatestTagOrEmpty(p.prefix) }
+
 // CreateTag 创建新 tag。
 func (p *GitProvider) CreateTag(tag string) error { return p.runner.CreateTag(tag) }
 
