@@ -1,11 +1,85 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
-	"git-tags/internal/tag"
+
+	"git-tags/internal/config"
+	"git-tags/internal/core"
+	"git-tags/internal/lua"
+	"git-tags/internal/provider"
 )
 
-var tagManager = tag.NewManager()
+// loadConfig 加载 .git-tags.toml；解析失败时直接退出（配置错误不应静默忽略）。
+func loadConfig() *config.Config {
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "配置错误: %v\n", err)
+		os.Exit(1)
+	}
+	return cfg
+}
+
+// absProjectRoot 返回当前目录的绝对路径（Lua 路径白名单与插件发现基准）。
+func absProjectRoot() string {
+	a, err := filepath.Abs(".")
+	if err != nil {
+		return "."
+	}
+	return a
+}
+
+var (
+	cfg     = loadConfig()
+	absRoot = absProjectRoot()
+	gitProv = newGitProvider()
+	plugins = lua.Discover(absRoot, gitProv.LatestTag)
+	engine  = newEngine()
+)
+
+// newGitProvider 创建绑定到项目根的 git provider（git 命令在项目内执行）。
+func newGitProvider() *provider.GitProvider {
+	g := provider.NewGitProvider(cfg.TagPrefix)
+	g.SetRoot(absRoot)
+	return g
+}
+
+// newEngine 组装引擎：内置 provider + Lua provider 插件 + Lua hook 插件。
+func newEngine() *core.Engine {
+	providers := []provider.Provider{
+		provider.NewTauri(),
+		provider.NewFlutter(),
+		provider.NewUV(),
+		provider.NewNode(),
+	}
+	var hooks []provider.Hook
+	for _, p := range plugins {
+		if p.Err != nil {
+			continue
+		}
+		r := lua.NewRunner(absRoot, gitProv.LatestTag)
+		switch p.Kind {
+		case "provider":
+			providers = append(providers, lua.NewProvider(p, r))
+		case "hook":
+			hooks = append(hooks, lua.NewHook(p, r))
+		}
+	}
+	e := core.New(cfg, providers...)
+	e.AddHooks(hooks...)
+	return e
+}
+
+// newContext 构造 provider 执行上下文：项目根为当前目录，日志输出到 stdout。
+func newContext() *provider.Context {
+	return &provider.Context{
+		Project: &provider.Project{Root: "."},
+		Log:     func(format string, args ...any) { fmt.Printf(format+"\n", args...) },
+	}
+}
 
 var RootCmd = &cobra.Command{
 	Use:               "git-tags",
@@ -19,44 +93,88 @@ var ListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "(ls) Show all tags",
-	Run: func(cmd *cobra.Command, args []string) {
-		tagManager.ListTags()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return engine.ListTags(absRoot)
 	},
 }
 
-var PatchCmd = &cobra.Command{
-	Use:   "patch",
-	Short: "Increment patch version",
-	Run: func(cmd *cobra.Command, args []string) {
-		push, _ := cmd.Flags().GetBool("push")
-		tagManager.BumpVersion("patch", push)
-	},
+func newBumpCmd(name, level string) *cobra.Command {
+	return &cobra.Command{
+		Use:   name,
+		Short: fmt.Sprintf("Increment %s version", level),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			push, _ := cmd.Flags().GetBool("push")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			commit, _ := cmd.Flags().GetBool("commit")
+			noTag, _ := cmd.Flags().GetBool("no-tag")
+			return engine.Bump(newContext(), level, core.Options{
+				Push: push, DryRun: dryRun, Commit: commit, NoTag: noTag,
+			})
+		},
+	}
 }
 
-var MinorCmd = &cobra.Command{
-	Use:   "minor",
-	Short: "Increment minor version",
-	Run: func(cmd *cobra.Command, args []string) {
-		push, _ := cmd.Flags().GetBool("push")
-		tagManager.BumpVersion("minor", push)
-	},
-}
-
-var MajorCmd = &cobra.Command{
-	Use:   "major",
-	Short: "Increment major version",
-	Run: func(cmd *cobra.Command, args []string) {
-		push, _ := cmd.Flags().GetBool("push")
-		tagManager.BumpVersion("major", push)
-	},
-}
+var PatchCmd = newBumpCmd("patch", "patch")
+var MinorCmd = newBumpCmd("minor", "minor")
+var MajorCmd = newBumpCmd("major", "major")
 
 var PushCmd = &cobra.Command{
 	Use:   "push",
 	Short: "Push tags to remote",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		branch, _ := cmd.Flags().GetString("branch")
-		tagManager.PushTag(branch)
+		return engine.PushTag(branch, absRoot)
+	},
+}
+
+var CheckCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Check version consistency across project providers",
+	Long:  "Compare every active provider's version with the canonical git tag and report inconsistencies.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		items, err := engine.Check(newContext())
+		if err != nil {
+			return err
+		}
+		inSync := true
+		for _, it := range items {
+			status := "✓"
+			if !it.InSync {
+				status = "✗"
+				inSync = false
+			}
+			fmt.Printf("%-10s %-12s %s\n", it.Provider, it.Version, status)
+		}
+		if !inSync {
+			return fmt.Errorf("版本不同步：请运行 git-tags sync 以权威源版本写回各 provider")
+		}
+		return nil
+	},
+}
+
+var SyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Sync canonical git tag version to all providers",
+	Long:  "Write the canonical version (latest git tag) to every writable target of all active providers.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		return engine.Sync(newContext(), dryRun)
+	},
+}
+
+var SetCmd = &cobra.Command{
+	Use:   "set <version>",
+	Short: "Set the project version explicitly",
+	Long:  "Set a new version, sync it to all providers, and optionally create a tag.",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		commit, _ := cmd.Flags().GetBool("commit")
+		noTag, _ := cmd.Flags().GetBool("no-tag")
+		push, _ := cmd.Flags().GetBool("push")
+		return engine.Set(newContext(), args[0], core.Options{
+			DryRun: dryRun, Commit: commit, NoTag: noTag, Push: push,
+		})
 	},
 }
 
@@ -64,18 +182,26 @@ var DeleteCmd = &cobra.Command{
 	Use:     "delete",
 	Aliases: []string{"del"},
 	Short:   "(del) Delete the latest tag, remote and local",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		branch, _ := cmd.Flags().GetString("branch")
-		tagManager.DeleteLatestTag(branch)
+		return engine.DeleteLatestTag(branch, absRoot)
 	},
 }
 
 func init() {
 	PushCmd.Flags().StringP("branch", "b", "origin", "Specify the branch to push tags to")
 	DeleteCmd.Flags().StringP("branch", "b", "origin", "Specify the remote branch to delete tags")
-	PatchCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
-	MinorCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
-	MajorCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
+	SyncCmd.Flags().Bool("dry-run", false, "Preview changes without applying them")
+	SetCmd.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
+	SetCmd.Flags().Bool("dry-run", false, "Preview changes without applying them")
+	SetCmd.Flags().Bool("commit", false, "Commit version changes together with the tag")
+	SetCmd.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
+	for _, c := range []*cobra.Command{PatchCmd, MinorCmd, MajorCmd} {
+		c.Flags().BoolP("push", "p", false, "Push tag to remote after creating")
+		c.Flags().Bool("dry-run", false, "Preview changes without applying them")
+		c.Flags().Bool("commit", false, "Commit version changes together with the tag")
+		c.Flags().Bool("no-tag", false, "Only update version files, do not create a tag")
+	}
 
-	RootCmd.AddCommand(ListCmd, PatchCmd, MinorCmd, MajorCmd, PushCmd, DeleteCmd)
+	RootCmd.AddCommand(ListCmd, PatchCmd, MinorCmd, MajorCmd, PushCmd, DeleteCmd, CheckCmd, SyncCmd, SetCmd)
 }
