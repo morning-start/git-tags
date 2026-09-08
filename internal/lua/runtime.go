@@ -55,7 +55,14 @@ func (r *Runner) Root() string { return r.root }
 // newState 创建沙箱化的 LState：只开放 base/table/string/math 库，
 // 并移除危险的 base 函数。os/io/package/debug/coroutine 一律不开放。
 func (r *Runner) newState() *lua.LState {
-	L := lua.NewState(lua.Options{SkipOpenLibs: true})
+	L := lua.NewState(lua.Options{
+		SkipOpenLibs: true,
+		// 默认 RegistryMaxSize=0 时 registry（VM 值栈）固定 8192 槽，
+		// table.concat 拼接大数组（大 Cargo.lock / package-lock.json 等）
+		// 会抛 "registry overflow"。放开上限让其按需扩容（约 50 万行安全）。
+		RegistryMaxSize:  1024 * 1024,
+		RegistryGrowStep: 1024,
+	})
 	lua.OpenBase(L)
 	lua.OpenTable(L)
 	lua.OpenString(L)
