@@ -129,7 +129,7 @@ var RootCmd = &cobra.Command{
 	Short:             "Manage git tags",
 	Long:              "A tool to manage git tags with version bumping capabilities.",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
-	Version:           "2.2.2",
+	Version:           "2.2.3",
 }
 
 var ListCmd = &cobra.Command{
