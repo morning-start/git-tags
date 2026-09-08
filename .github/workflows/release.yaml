@@ -23,26 +23,23 @@ jobs:
           go-version: '1.24.4'
       - name: Build
         run: |
-          mkdir -p dist/
+          mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/${{ matrix.goos }}/
-      - name: Compress Release
-        uses: thedoctor0/zip-release@0.7.6
-        with:
-          type: 'zip'
-          directory: "dist/${{ matrix.goos }}"
-          filename: 'git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip'
+      - name: Compress
+        run: |
+          cd dist/${{ matrix.goos }}
+          zip -q -r "../git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip" .
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: git-tags-${{ matrix.goos }}
-          path: dist/${{ matrix.goos }}/git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip
+          path: dist/git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip
           if-no-files-found: error
 
-  # release 与 build 分离：matrix 各 job 并行执行时若各自调用 Create Release，
-  # 会对同一个 tag 并发创建，先到者成功、后到者报 422 already_exists
-  # （此前 v2.2.1 的 release 就因此只挂上了 2 个 zip）。改为 build 只上传产物，
-  # release 汇总全部 zip 后仅创建/更新一次；allowUpdates 让重跑同一 tag 时
-  # 走更新而非新建，天然幂等。
+  # 手写 release 步骤（gh CLI，runner 预装）：
+  # - 只用官方 actions/*，无第三方 action，也无 node20 弃用警告；
+  # - 单 job 创建，杜绝 matrix 并发写同一 tag 导致的 422 already_exists；
+  # - 已存在则 gh release upload --clobber 补资产，重跑幂等。
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -52,9 +49,19 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Create Release
-        uses: ncipollo/release-action@v1.18.0
-        with:
-          artifacts: "./dist/*.zip"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "::notice::release ${TAG} 已存在，更新资产"
+            gh release upload "${TAG}" dist/*.zip --clobber
+          else
+            echo "::notice::创建 release ${TAG}"
+            gh release create "${TAG}" dist/*.zip \
+              --title "${TAG}" \
+              --notes "git-tags ${TAG}" || \
+              gh release upload "${TAG}" dist/*.zip --clobber
+          fi
