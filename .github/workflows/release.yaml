@@ -52,6 +52,9 @@ jobs:
       - name: Create or update release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 本 job 未 checkout，gh 无法从 git remote 推断仓库（报
+          # "failed to run git: not a git repository"），必须显式指定。
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
