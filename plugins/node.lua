@@ -3,7 +3,8 @@
 -- 承载版本的前端项目。
 -- 同步范围:
 --   package.json          顶层 "version" 字段（保留原有空白/引号格式）
---   package-lock.json     只读校验（由 npm/pnpm/yarn 重新生成，本插件不修改）
+--   package-lock.json     根条目版本同步（顶层 "version" 与 packages.""；npm-shrinkwrap.json 同）
+--                         （yarn.lock / pnpm-lock.yaml 无版本字段；read 仍做一致性校验）
 --
 -- 用法: 已内嵌进 git-tags 二进制开箱即用；想自定义时把本文件放进
 --   项目 .git-tags/plugins/ 或全局插件目录（%APPDATA%\git-tags\plugins\），
@@ -14,7 +15,7 @@ plugin = {
   name = "node",
   type = "provider",
   priority = 65,
-  description = "node/前端项目版本同步: package.json（package-lock.json 只读校验）",
+  description = "node/前端项目版本同步: package.json + lock 根条目版本同步",
 }
 
 local FILES = {
@@ -44,6 +45,54 @@ end
 -- 替换顶层 "version" 的值（保留原有空白与引号格式，只替换第一处 = 顶层字段）
 local function replace_json_version(content, new_val)
   return content:gsub('("version"%s*:%s*")[^"]*(")', "%1" .. new_val .. "%2", 1)
+end
+
+-- 定位 "packages" 段起始。跳过依赖条目中名为 "packages" 的键（形如
+-- "node_modules/packages" 的键其引号前是 "/"，顶层键前是空白/换行）。
+local function find_packages_section(content)
+  local s = content:find('"packages"%s*:%s*{')
+  while s do
+    if s == 1 or content:sub(s - 1, s - 1) ~= "/" then
+      return s
+    end
+    s = content:find('"packages"%s*:%s*{', s + 1)
+  end
+  return nil
+end
+
+-- 同步 lock 根条目版本：顶层 "version"（v1/v2/v3 均在文件首位），lockfileVersion 2/3
+-- 另有 packages."" 条目。只改根条目，值已是新版本则跳过；返回 (新内容, 是否变更)。
+-- 不做全局替换，避免误伤同版本号的依赖条目。
+local function sync_lock_version(content, new_val)
+  local changed = false
+
+  -- 1) 顶层 "version"（首个出现的 version 字段 = 根项目版本）
+  local root_ver = content:match('"version"%s*:%s*"([^"]+)"')
+  if root_ver and root_ver ~= new_val then
+    content = content:gsub('("version"%s*:%s*")[^"]*(")', "%1" .. new_val .. "%2", 1)
+    changed = true
+  end
+
+  -- 2) packages."" 条目（lockfileVersion 2/3）
+  local start = find_packages_section(content)
+  if start then
+    local root = content:find('""%s*:%s*{', start)
+    if root then
+      local vs = content:find('"version"%s*:%s*"', root)
+      if vs then
+        local ve = content:find('"', vs + #'"version": "')
+        if ve then
+          local cur = content:sub(vs + #'"version": "', ve - 1)
+          if cur ~= new_val then
+            content = content:sub(1, vs - 1) .. '"version": "' .. new_val .. '"' .. content:sub(ve)
+            changed = true
+          end
+        end
+      end
+    end
+  end
+
+  return content, changed
 end
 
 -- ---------- Provider 契约 ----------
@@ -84,4 +133,17 @@ function plugin.write(project, version)
   if hit == 0 then error(FILES.pkg .. ' 未找到 "version": "' .. old .. '"') end
   gt.write_file(FILES.pkg, updated)
   gt.log("已同步 " .. FILES.pkg .. " → " .. version)
+
+  -- lock 根条目版本同步（npm-shrinkwrap.json 优先于 package-lock.json，存在才处理；
+  -- yarn.lock / pnpm-lock.yaml 无版本字段，不处理）
+  for _, lockpath in ipairs({ "npm-shrinkwrap.json", FILES.lock }) do
+    local lock = read(lockpath)
+    if lock then
+      local updated_lock, changed = sync_lock_version(lock, version)
+      if changed then
+        gt.write_file(lockpath, updated_lock)
+        gt.log("已同步 " .. lockpath .. " 根条目 → " .. version)
+      end
+    end
+  end
 end

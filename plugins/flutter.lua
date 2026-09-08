@@ -1,7 +1,7 @@
 -- flutter.lua —— flutter 项目版本同步插件
 -- 同步范围:
 --   pubspec.yaml    顶层 version: X.Y.Z+build（写入时保留 build 号，仅替换基础版本）
---   pubspec.lock    packages.root.version 只读校验（由 flutter pub get 重新生成）
+--   pubspec.lock    root: 块 version 同步（写入时保留 build 号；read 仍做一致性校验）
 --
 -- 用法: 已内嵌进 git-tags 二进制开箱即用；想自定义时把本文件放进
 --   项目 .git-tags/plugins/ 或全局插件目录（%APPDATA%\git-tags\plugins\），
@@ -12,7 +12,7 @@ plugin = {
   name = "flutter",
   type = "provider",
   priority = 75,
-  description = "flutter 版本同步: pubspec.yaml（保留 +build），pubspec.lock 只读校验",
+  description = "flutter 版本同步: pubspec.yaml（保留 +build）+ pubspec.lock root 版本",
 }
 
 local FILES = {
@@ -98,6 +98,36 @@ local function read_lock_root_version(content)
   return nil
 end
 
+-- 同步 pubspec.lock root: 块内的 version 行（保留原缩进与引号格式）；
+-- 值已是新版本则跳过。返回 (新内容, 是否变更)
+local function sync_lock_root_version(content, new_val)
+  local lines = split_lines(content)
+  local root = -1
+  for i, ln in ipairs(lines) do
+    if trim(ln) == "root:" then
+      root = i
+      break
+    end
+  end
+  if root < 0 then return content, false end
+  for i = root + 1, #lines do
+    local t = trim(lines[i])
+    if t ~= "" then
+      if indent(lines[i]) < 2 then break end
+      if indent(lines[i]) >= 4 then
+        local cur = t:match("^version%s*:%s*[\"']?([^%s\"'#]+)")
+        if cur then
+          if cur == new_val then return content, false end
+          local indent_str = lines[i]:match("^(%s*)")
+          lines[i] = indent_str .. 'version: "' .. new_val .. '"'
+          return table.concat(lines, "\n"), true
+        end
+      end
+    end
+  end
+  return content, false
+end
+
 -- ---------- Provider 契约 ----------
 
 function plugin.detect(project)
@@ -139,4 +169,14 @@ function plugin.write(project, version)
   if not hit then error(FILES.yaml .. " 未找到可替换的 version: 字段") end
   gt.write_file(FILES.yaml, updated)
   gt.log("已同步 " .. FILES.yaml .. " → " .. new_val)
+
+  -- pubspec.lock 根条目版本同步（存在才处理；root 块 version 写入完整版本含 build 号）
+  local lock = read(FILES.lock)
+  if lock then
+    local updated_lock, changed = sync_lock_root_version(lock, new_val)
+    if changed then
+      gt.write_file(FILES.lock, updated_lock)
+      gt.log("已同步 " .. FILES.lock .. " 根条目 → " .. new_val)
+    end
+  end
 end

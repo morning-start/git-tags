@@ -8,7 +8,7 @@
 
 - **零安装开箱即用** —— 内置 tauri、flutter、uv python、node 支持（Lua 插件已内嵌进二进制，无需任何安装）
 - **Lua 可扩展** —— 一个 `.lua` 文件即可支持任意项目结构，无需改 Go 代码
-- **锁文件只读** —— `Cargo.lock`、`pubspec.lock`、`uv.lock` 只做一致性校验、绝不写入（由你的工具链重新生成）
+- **锁文件同步** —— `package-lock.json`、`Cargo.lock`、`pubspec.lock`、`uv.lock` 的根条目版本随发布一起写入并进入 tag 提交，lock 与配置文件永远一致（锁定内容仍由工具链管理）
 
 ## 快速开始
 
@@ -35,7 +35,7 @@ node       0.6.1        ✓
 一个源头，多处输出：
 
 <p align="center">
-  <img src="./assets/readme/sync-flow.svg" width="100%" alt="git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件；锁文件只校验不写入">
+  <img src="./assets/readme/sync-flow.svg" width="100%" alt="git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件；锁文件根条目版本随发布同步">
 </p>
 
 1. `git-tags patch` 读取**最新 git tag** 作为权威版本。
@@ -125,7 +125,7 @@ Hook 围绕 bump 流程执行（`pre_bump` → 写文件 → `post_bump` → 建
 
 ## 注意事项
 
-- 锁文件**只校验、绝不写入**。bump 之后运行你的工具链（`cargo build`、`flutter pub get`、`uv sync`）重新生成，再 `check` 一次。
+- lock 文件（`package-lock.json` / `npm-shrinkwrap.json` 顶层与 `packages.""`、`Cargo.lock` / `pubspec.lock` / `uv.lock` 根包条目）的**根条目版本**由 git-tags 在发布时随配置一起同步，随提交进入 tag；锁定内容本身仍由工具链管理，`check` 仍会校验一致性。
 - Flutter 的 `X.Y.Z+build`：写入时保留 build 号，比较时使用基础版本。
 
 ## 友情链接

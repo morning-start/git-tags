@@ -5,7 +5,7 @@
 --   package.json              "version": "..."
 --   src-tauri/tauri.conf.json "version": "..."
 --   src-tauri/Cargo.toml      [package].version（只改 package 段，不动依赖）
---   src-tauri/Cargo.lock      只读校验（由 cargo build 重新生成，本插件不修改）
+--   src-tauri/Cargo.lock      根包条目 version 同步（read 仍做一致性校验）
 --   README.md                 shields.io version 徽章（可选，存在才改）
 --
 -- 用法: 已内嵌进 git-tags 二进制开箱即用；想自定义时把本文件放进
@@ -17,7 +17,7 @@ plugin = {
   name = "tauri",
   type = "provider",
   priority = 85,
-  description = "tauri 全量同步: package.json + tauri.conf.json + Cargo.toml + README 徽章（Cargo.lock 只读校验）",
+  description = "tauri 全量同步: package.json + tauri.conf.json + Cargo.toml + Cargo.lock + README 徽章",
 }
 
 local FILES = {
@@ -122,6 +122,28 @@ local function find_lock_version(content, app_name)
   return nil
 end
 
+-- 同步 Cargo.lock 根包条目（name 匹配后紧跟的 version 行）的版本，保留缩进；
+-- 值已是新版本则跳过。返回 (新内容, 是否变更)
+local function sync_lock_version(content, app_name, new_val)
+  local lines = split_lines(content)
+  for i, ln in ipairs(lines) do
+    if trim(ln) == 'name = "' .. app_name .. '"' then
+      for j = i + 1, #lines do
+        if lines[j]:match("^%s*%[%[") then break end -- 进入下一个 [[package]] 块
+        local cur = lines[j]:match('^%s*version%s*=%s*"([^"]*)"')
+        if cur then
+          if cur == new_val then return content, false end
+          local indent_str = lines[j]:match("^(%s*)")
+          lines[j] = indent_str .. 'version = "' .. new_val .. '"'
+          return table.concat(lines, "\n"), true
+        end
+      end
+      return content, false
+    end
+  end
+  return content, false
+end
+
 -- ---------- Provider 契约 ----------
 
 function plugin.detect(project)
@@ -195,6 +217,20 @@ function plugin.write(project, version)
   local cargo = read(FILES.cargo)
   if cargo then
     outputs[#outputs + 1] = { FILES.cargo, replace_cargo_package_version(cargo, old, version) }
+  end
+
+  -- 4. Cargo.lock 根包条目版本同步（name 取自 Cargo.toml [package].name；存在才处理）
+  if cargo then
+    local name = select(1, read_cargo_package(cargo))
+    if name then
+      local lock = read(FILES.lock)
+      if lock then
+        local updated_lock, changed = sync_lock_version(lock, name, version)
+        if changed then
+          outputs[#outputs + 1] = { FILES.lock, updated_lock }
+        end
+      end
+    end
   end
 
   -- 5. README shields 徽章（可选：存在才改；比 TS 的严格报错更宽容）

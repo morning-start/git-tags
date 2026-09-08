@@ -1,7 +1,7 @@
 -- uv.lua —— uv python 项目版本同步插件
 -- 同步范围:
 --   pyproject.toml   [project].version（段内替换，不动依赖）
---   uv.lock          根包条目只读校验（由 uv sync 重新生成）
+--   uv.lock          根包条目 version 同步（name 取 [project].name；read 仍做一致性校验）
 --
 -- 用法: 已内嵌进 git-tags 二进制开箱即用；想自定义时把本文件放进
 --   项目 .git-tags/plugins/ 或全局插件目录（%APPDATA%\git-tags\plugins\），
@@ -12,7 +12,7 @@ plugin = {
   name = "uv",
   type = "provider",
   priority = 70,
-  description = "uv python 版本同步: pyproject.toml [project].version，uv.lock 只读校验",
+  description = "uv python 版本同步: pyproject.toml [project].version + uv.lock 根包版本",
 }
 
 local FILES = {
@@ -104,6 +104,28 @@ local function read_lock_version(content, app_name)
   return nil
 end
 
+-- 同步 uv.lock 根包条目（name 匹配后紧跟的 version 行）的版本，保留缩进；
+-- 值已是新版本则跳过。返回 (新内容, 是否变更)
+local function sync_lock_version(content, app_name, new_val)
+  local lines = split_lines(content)
+  for i, ln in ipairs(lines) do
+    if trim(ln) == 'name = "' .. app_name .. '"' then
+      for j = i + 1, #lines do
+        if lines[j]:match("^%s*%[%[") then break end -- 进入下一个 [[package]]
+        local cur = lines[j]:match('^%s*version%s*=%s*"([^"]*)"')
+        if cur then
+          if cur == new_val then return content, false end
+          local indent_str = lines[j]:match("^(%s*)")
+          lines[j] = indent_str .. 'version = "' .. new_val .. '"'
+          return table.concat(lines, "\n"), true
+        end
+      end
+      return content, false
+    end
+  end
+  return content, false
+end
+
 -- ---------- Provider 契约 ----------
 
 function plugin.detect(project)
@@ -137,4 +159,17 @@ function plugin.write(project, version)
   local updated = replace_section_key(content, "project", "version", version)
   gt.write_file(FILES.pyproject, updated)
   gt.log("已同步 " .. FILES.pyproject .. " → " .. version)
+
+  -- uv.lock 根包条目版本同步（存在且 [project].name 可得才处理）
+  local name = read_section_key(content, "project", "name")
+  if name then
+    local lock = read(FILES.lock)
+    if lock then
+      local updated_lock, changed = sync_lock_version(lock, name, version)
+      if changed then
+        gt.write_file(FILES.lock, updated_lock)
+        gt.log("已同步 " .. FILES.lock .. " 根条目 → " .. version)
+      end
+    end
+  end
 end

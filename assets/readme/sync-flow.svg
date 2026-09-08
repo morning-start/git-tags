@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg"
      width="1200" height="340" viewBox="0 0 1200 340"
      role="img" aria-labelledby="flow-title flow-desc">
-  <title id="flow-title">同步流程 —— git tag 驱动所有 provider；锁文件只校验</title>
-  <desc id="flow-desc">示意图：git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件 provider；锁文件标注为只读。</desc>
+  <title id="flow-title">同步流程 —— git tag 驱动所有 provider；锁文件根条目随发布同步</title>
+  <desc id="flow-desc">示意图：git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件 provider；锁文件根条目版本随发布同步。</desc>
 
   <defs>
     <style>
@@ -45,8 +45,8 @@
     <line x1="600" y1="158" x2="915" y2="196"/>
   </g>
 
-  <!-- lock files: validated only -->
-  <text class="sans" x="64" y="290" font-size="18" fill="#8A919C">锁文件 — 只校验，不写入</text>
+  <!-- lock files: root version synced on release -->
+  <text class="sans" x="64" y="290" font-size="18" fill="#8A919C">锁文件 — 根条目版本随发布同步</text>
 
   <g>
     <rect x="640" y="272" width="150" height="40" rx="20" fill="none" stroke="#8A919C" stroke-width="1" stroke-dasharray="5 4"/>
