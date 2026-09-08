@@ -4,21 +4,21 @@ on:
   push:
     tags:
       - 'v*'
-      
-permissions:  # 添加权限设置
-    contents: write  # 允许读写仓库内容    
-    
+
+permissions:
+  contents: write
+
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         goarch: [amd64]
         goos: [linux, windows, darwin]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version: '1.24.4'
       - name: Build
@@ -31,9 +31,30 @@ jobs:
           type: 'zip'
           directory: "dist/${{ matrix.goos }}"
           filename: 'git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: git-tags-${{ matrix.goos }}
+          path: dist/${{ matrix.goos }}/git-tags-${{ matrix.goos }}-${{ github.ref_name }}.zip
+          if-no-files-found: error
+
+  # release 与 build 分离：matrix 各 job 并行执行时若各自调用 Create Release，
+  # 会对同一个 tag 并发创建，先到者成功、后到者报 422 already_exists
+  # （此前 v2.2.1 的 release 就因此只挂上了 2 个 zip）。改为 build 只上传产物，
+  # release 汇总全部 zip 后仅创建/更新一次；allowUpdates 让重跑同一 tag 时
+  # 走更新而非新建，天然幂等。
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
       - name: Create Release
         uses: ncipollo/release-action@v1.18.0
         with:
-          artifacts: "./dist/${{ matrix.goos }}/*.zip"
+          artifacts: "./dist/*.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
