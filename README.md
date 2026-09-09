@@ -53,11 +53,11 @@ node       0.6.1        ✓
 | `check` | 校验每个 provider 是否与 tag 一致 |
 | `sync` | 把 tag 版本写回所有可写文件 |
 | `set 1.4.0` | 直接指定版本（可选创建 tag） |
-| `push` | 推送最新 tag 到远端 |
+| `push` | 先推送分支 commit，再推送最新 tag 到远端 |
 | `del` | 删除最新 tag，并默认把版本文件**回滚**到新的最新 tag（无更早 tag 时只删 tag、不动文件） |
 | `plugins list` / `validate` | 列出与校验 Lua 插件 |
 
-常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--no-tag` 只改文件（不提交、不建 tag）；`-p, --push` 打 tag 后推送远端。提交是发布流程的强制步骤，不可关闭。
+常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--no-tag` 只改文件（不提交、不建 tag）；`-p, --push` 打 tag 后**先推送 commit、再推送 tag** 到远端（保证远端存在 tag 指向的提交）。提交是发布流程的强制步骤，不可关闭。
 
 > 默认发布流程：要求工作区干净（有未提交改动会报错）→ 写版本文件 → 自动提交（`chore(release): bump to <tag>`）→ 打 tag。tag 始终指向包含新版本号的 commit；`--no-tag` 则只改文件、不提交不打 tag，改动留待自行 review 后提交。
 

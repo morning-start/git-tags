@@ -117,7 +117,7 @@ func (e *Engine) LatestTag(root string) string {
 	return e.git.LatestTag()
 }
 
-// PushTag 推送最新 tag 到远程分支。
+// PushTag 推送最新 tag 到远程分支（先推 commit，保证远端存在 tag 指向的提交）。
 func (e *Engine) PushTag(branch, root string) error {
 	e.git.SetRoot(root)
 	return e.git.PushTag(branch, e.git.LatestTag())

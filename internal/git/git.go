@@ -64,8 +64,18 @@ func (r *Runner) CreateTag(tag string) error {
 	return nil
 }
 
+// PushTag 先推送当前分支的 commit（git push <branch> HEAD），再推送 tag：
+// 保证远端存在 tag 指向的提交，避免出现只被 tag 引用、不被任何分支引用的
+// 悬挂 commit。任一步失败即整体报错——本地分叉/落后（non-fast-forward）时
+// 阻断推送，而不是把 tag 推上去但远端缺少它指向的提交。
 func (r *Runner) PushTag(branch, tag string) error {
-	output, err := r.Run("push", branch, tag)
+	output, err := r.Run("push", branch, "HEAD")
+	if err != nil {
+		return fmt.Errorf("error pushing commit: %w\n%s", err, output)
+	}
+	fmt.Println(output)
+
+	output, err = r.Run("push", branch, tag)
 	if err != nil {
 		return fmt.Errorf("error pushing tag %s: %w\n%s", tag, err, output)
 	}
