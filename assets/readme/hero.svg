@@ -26,7 +26,7 @@
     <text class="sans" x="0" y="224" font-size="26" fill="#AEB4BD">git tag 是唯一权威源，</text>
     <text class="sans" x="0" y="258" font-size="26" fill="#AEB4BD">所有版本文件一次同步。</text>
 
-    <text class="mono" x="0" y="302" font-size="20" fill="#8A919C">GO · TAURI / FLUTTER / UV / NODE · MIT</text>
+    <text class="mono" x="0" y="302" font-size="20" fill="#8A919C">GO · TAURI / FLUTTER / UV / NODE / MOONBIT · MIT</text>
 
     <!-- prompt + tag pill motif -->
     <text class="mono" x="0" y="334" font-size="22" fill="#E6E9EE">
@@ -38,7 +38,7 @@
 
   <!-- ===== right: terminal proof ===== -->
   <g transform="translate(700 0)">
-    <rect x="0" y="56" width="436" height="260" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
+    <rect x="0" y="56" width="436" height="290" rx="12" fill="#13161B" stroke="#23262C" stroke-width="1"/>
 
     <!-- window title bar -->
     <circle cx="24" cy="80" r="6" fill="#3B4048"/>
@@ -55,6 +55,7 @@
       <text x="28" y="232"><tspan fill="#8A919C">flutter</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
       <text x="28" y="262"><tspan fill="#8A919C">uv</tspan><tspan fill="#E6E9EE">      0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
       <text x="28" y="292"><tspan fill="#8A919C">node</tspan><tspan fill="#E6E9EE">    0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="322"><tspan fill="#8A919C">moonbit</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
     </g>
   </g>
 </svg>

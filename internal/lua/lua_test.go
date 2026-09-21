@@ -389,6 +389,146 @@ func TestBigLockFileWrite(t *testing.T) {
 	}
 }
 
+// TestMoonbitProviderE2E 验证 moonbit 插件全链路：moon.mod 顶层 version 的
+// 检测、check 一致性与 bump 写入；import { ... } 依赖串与其它顶层键不受影响。
+// moon.mod 结构复刻真实 MoonBit 项目（prism）的 manifest。
+func TestMoonbitProviderE2E(t *testing.T) {
+	moonbitLua, err := os.ReadFile(filepath.Join("..", "..", "plugins", "moonbit.lua"))
+	if err != nil {
+		t.Fatalf("读取 plugins/moonbit.lua 失败: %v", err)
+	}
+	root := t.TempDir()
+	const moonMod = `name = "morning-start/prism"
+
+source = "src"
+
+version = "0.1.3"
+
+readme = "README.mbt.md"
+
+repository = "https://github.com/morning-start/prism"
+
+license = "MIT"
+
+keywords = [ "llm", "wasm", "protocol", "middleware", "adapter" ]
+
+preferred_target = "wasm-gc"
+
+description = "A unified LLM protocol middleware converting between provider formats"
+
+import {
+  "moonbitlang/quickcheck@0.14.0",
+}
+`
+	writeTestFile(t, filepath.Join(root, "moon.mod"), moonMod)
+	initTestRepo(t, root, "v0.1.3")
+
+	ep, err := LoadEmbeddedProvider("moonbit", string(moonbitLua), NewRunner(root, nil))
+	if err != nil {
+		t.Fatalf("LoadEmbeddedProvider error: %v", err)
+	}
+	if ep.Name() != "moonbit" || ep.Priority() != 55 {
+		t.Errorf("内嵌 provider 元数据 = %s/%d, want moonbit/55", ep.Name(), ep.Priority())
+	}
+
+	ctx := &provider.Context{Project: &provider.Project{Root: root}, Log: t.Logf}
+	if !ep.Detect(ctx) {
+		t.Fatalf("含顶层 version 的 moon.mod 应被 moonbit 插件检测到")
+	}
+
+	engine := core.New(config.Default(), ep)
+
+	items, err := engine.Check(ctx)
+	if err != nil {
+		t.Fatalf("Check error: %v", err)
+	}
+	var found bool
+	for _, it := range items {
+		if it.Provider == "moonbit" {
+			found = true
+			if it.Version != "0.1.3" || !it.InSync {
+				t.Errorf("moonbit check = %+v, want 0.1.3 in sync", it)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("check 报告未包含 moonbit: %+v", items)
+	}
+
+	if err := engine.Bump(ctx, "patch", core.Options{}); err != nil {
+		t.Fatalf("Bump error: %v", err)
+	}
+
+	updated := readTestFile(t, filepath.Join(root, "moon.mod"))
+	if !strings.Contains(updated, "version = \"0.1.4\"") {
+		t.Errorf("moon.mod 顶层 version 未同步到 0.1.4:\n%s", updated)
+	}
+	// import 依赖串（pkg@version）不是项目版本，必须原样保留
+	if !strings.Contains(updated, "\"moonbitlang/quickcheck@0.14.0\",") {
+		t.Errorf("moon.mod import 依赖串被误改:\n%s", updated)
+	}
+	// 其余顶层键与空行结构保持不变
+	for _, keep := range []string{
+		"name = \"morning-start/prism\"", "source = \"src\"", "readme = \"README.mbt.md\"",
+		"preferred_target = \"wasm-gc\"", "license = \"MIT\"",
+	} {
+		if !strings.Contains(updated, keep) {
+			t.Errorf("moon.mod 关键行 %q 丢失:\n%s", keep, updated)
+		}
+	}
+
+	v, err := ep.Read(ctx)
+	if err != nil {
+		t.Fatalf("bump 后 Read error: %v", err)
+	}
+	if v != "0.1.4" {
+		t.Errorf("bump 后 Read = %s, want 0.1.4", v)
+	}
+}
+
+// TestMoonbitPluginDetect 验证检测边界：moon.mod 缺失或没有顶层 version 键时
+// 插件不激活（段内/依赖串里的 version 不算项目版本）。
+func TestMoonbitPluginDetect(t *testing.T) {
+	moonbitLua, err := os.ReadFile(filepath.Join("..", "..", "plugins", "moonbit.lua"))
+	if err != nil {
+		t.Fatalf("读取 plugins/moonbit.lua 失败: %v", err)
+	}
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"顶层 version", "name = \"a/b\"\nversion = \"1.2.3\"\n", true},
+		{"version 在段内", "name = \"a/b\"\n\n[dependencies]\nversion = \"1.2.3\"\n", false},
+		{"无 version 键", "name = \"a/b\"\n\nimport {\n  \"moonbitlang/core@0.1.0\",\n}\n", false},
+		{"注释中的 version", "name = \"a/b\"\n# version = \"1.2.3\"\n", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, filepath.Join(root, "moon.mod"), tc.content)
+			ep, err := LoadEmbeddedProvider("moonbit", string(moonbitLua), NewRunner(root, nil))
+			if err != nil {
+				t.Fatalf("LoadEmbeddedProvider error: %v", err)
+			}
+			ctx := &provider.Context{Project: &provider.Project{Root: root}}
+			if got := ep.Detect(ctx); got != tc.want {
+				t.Errorf("Detect = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	// moon.mod 不存在时同样不激活
+	root := t.TempDir()
+	ep, err := LoadEmbeddedProvider("moonbit", string(moonbitLua), NewRunner(root, nil))
+	if err != nil {
+		t.Fatalf("LoadEmbeddedProvider error: %v", err)
+	}
+	if ep.Detect(&provider.Context{Project: &provider.Project{Root: root}}) {
+		t.Errorf("无 moon.mod 时 Detect 应为 false")
+	}
+}
+
 // bigCargoLock 生成根包条目 + extraCrates 个填充 crate 的 Cargo.lock，
 // 总行数远超 gopher-lua 默认 8192 槽位 registry（每行约 2 个栈槽）。
 func bigCargoLock(appName, ver string, extraCrates int) string {
