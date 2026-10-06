@@ -18,7 +18,7 @@ import (
 // git-tags update 自我升级时会以它为基准与 GitHub 最新 release 比对。
 // 用变量而非常量：本地演练/CI 可用 ldflags 注入演练版本，
 // 如 go build -ldflags "-X git-tags/cmd.Version=0.0.1"。
-var Version = "2.5.0"
+var Version = "2.6.0"
 
 // loadConfig 加载 .git-tags.toml；解析失败时直接退出（配置错误不应静默忽略）。
 func loadConfig() *config.Config {
