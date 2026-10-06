@@ -9,6 +9,7 @@
 - **零安装开箱即用** —— 内置 tauri、rust、flutter、uv python、node、moonbit 支持（Lua 插件已内嵌进二进制，无需任何安装）
 - **Lua 可扩展** —— 一个 `.lua` 文件即可支持任意项目结构，无需改 Go 代码
 - **锁文件同步** —— `package-lock.json`、`Cargo.lock`、`pubspec.lock`、`uv.lock` 的根条目版本随发布一起写入并进入 tag 提交，lock 与配置文件永远一致（锁定内容仍由工具链管理）
+- **自我升级** —— `git-tags update` 一条命令升级到最新 release（查询优先 gh CLI，回退 GitHub REST API）
 
 ## 快速开始
 
@@ -57,12 +58,26 @@ node       0.6.1        ✓
 | `push` | 先推送分支 commit，再推送最新 tag 到远端 |
 | `del` | 删除最新 tag，并默认把版本文件**回滚**到新的最新 tag（无更早 tag 时只删 tag、不动文件） |
 | `plugins list` / `validate` | 列出与校验 Lua 插件 |
+| `update` | 自我升级到 GitHub 最新 release |
 
 常用参数：`--dry-run` 预览每个文件的改动（`旧值 → 新值`）；`--no-tag` 只改文件（不提交、不建 tag）；`-p, --push` 打 tag 后**先推送 commit、再推送 tag** 到远端（保证远端存在 tag 指向的提交）。提交是发布流程的强制步骤，不可关闭。
 
 > 默认发布流程：要求工作区干净（有未提交改动会报错）→ 写版本文件 → 自动提交（`chore(release): bump to <tag>`）→ 打 tag。tag 始终指向包含新版本号的 commit；`--no-tag` 则只改文件、不提交不打 tag，改动留待自行 review 后提交。
 
 `set` 定向用法：`git-tags set 1.4.0 --framework flutter` 只把 flutter 的版本文件改成 1.4.0（**不创建 tag**），适合只想动其中一个框架的场景；定向改动由之后的全量 `set` / `patch` 统一收口到 git tag。
+
+## 自我升级
+
+```bash
+git-tags update            # 查询最新 release，有新版则下载替换当前二进制
+git-tags update --check    # 只检查，不下载
+git-tags update --yes      # 跳过确认直接安装
+git-tags update --repo owner/name   # 显式指定升级源仓库
+```
+
+升级流程：查询 GitHub 最新 release（**优先 gh CLI**，本机已登录时稳定不受限流；gh 不可用时回退 REST API，自动携带 gh/Git 凭据管理器中的令牌）→ 按平台下载 `git-tags-<goos>-<tag>.zip` → 内存解包校验 → 同目录原子替换（Windows 下先改名腾位，失败自动回滚）。替换完成后重开终端使新版本生效。
+
+升级源仓库自动推断：优先读当前项目 git remote origin（仅 github.com），否则使用 `morning-start/git-tags`；`--repo` 可覆盖。
 
 ## 配置
 
