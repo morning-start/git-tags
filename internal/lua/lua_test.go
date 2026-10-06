@@ -542,3 +542,165 @@ func bigCargoLock(appName, ver string, extraCrates int) string {
 	}
 	return b.String()
 }
+
+// TestRustProviderE2E 验证 rust 插件全链路：Cargo.toml [package].version 的
+// 检测、check 一致性与 bump 写入，Cargo.lock 根包条目同步。
+// Cargo.toml 结构复刻真实 clap CLI 项目（link-disk）的 manifest，
+// [dependencies] 段里的 version 串是"不能被动"的邻近版本。
+func TestRustProviderE2E(t *testing.T) {
+	rustLua, err := os.ReadFile(filepath.Join("..", "..", "plugins", "rust.lua"))
+	if err != nil {
+		t.Fatalf("读取 plugins/rust.lua 失败: %v", err)
+	}
+	root := t.TempDir()
+	const cargoToml = `[package]
+name = "link-disk"
+version = "1.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+
+[profile.release]
+lto = true
+`
+	writeTestFile(t, filepath.Join(root, "Cargo.toml"), cargoToml)
+	writeTestFile(t, filepath.Join(root, "Cargo.lock"), bigCargoLock("link-disk", "1.1.0", 200))
+	initTestRepo(t, root, "v1.1.0")
+
+	ep, err := LoadEmbeddedProvider("rust", string(rustLua), NewRunner(root, nil))
+	if err != nil {
+		t.Fatalf("LoadEmbeddedProvider error: %v", err)
+	}
+	if ep.Name() != "rust" || ep.Priority() != 80 {
+		t.Errorf("内嵌 provider 元数据 = %s/%d, want rust/80", ep.Name(), ep.Priority())
+	}
+
+	ctx := &provider.Context{Project: &provider.Project{Root: root}, Log: t.Logf}
+	if !ep.Detect(ctx) {
+		t.Fatalf("含 [package].version 的 Cargo.toml 应被 rust 插件检测到")
+	}
+
+	engine := core.New(config.Default(), ep)
+
+	items, err := engine.Check(ctx)
+	if err != nil {
+		t.Fatalf("Check error: %v", err)
+	}
+	var found bool
+	for _, it := range items {
+		if it.Provider == "rust" {
+			found = true
+			if it.Version != "1.1.0" || !it.InSync {
+				t.Errorf("rust check = %+v, want 1.1.0 in sync", it)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("check 报告未包含 rust: %+v", items)
+	}
+
+	if err := engine.Bump(ctx, "patch", core.Options{}); err != nil {
+		t.Fatalf("Bump error: %v", err)
+	}
+
+	updatedToml := readTestFile(t, filepath.Join(root, "Cargo.toml"))
+	if !strings.Contains(updatedToml, "version = \"1.1.1\"") {
+		t.Errorf("Cargo.toml [package].version 未同步到 1.1.1:\n%s", updatedToml)
+	}
+	// [dependencies] 段的版本串与 edition 不是项目版本，必须原样保留
+	for _, keep := range []string{
+		`clap = { version = "4.5", features = ["derive"] }`,
+		`toml = "0.8"`,
+		`edition = "2024"`,
+	} {
+		if !strings.Contains(updatedToml, keep) {
+			t.Errorf("Cargo.toml 关键行 %q 被误改:\n%s", keep, updatedToml)
+		}
+	}
+
+	updatedLock := readTestFile(t, filepath.Join(root, "Cargo.lock"))
+	if !strings.Contains(updatedLock, "name = \"link-disk\"\nversion = \"1.1.1\"") {
+		t.Errorf("Cargo.lock 根包版本未同步到 1.1.1")
+	}
+	// 依赖 crate 条目不是根包，必须原样保留
+	if !strings.Contains(updatedLock, "name = \"crate-0\"\nversion = \"0.1.0\"") {
+		t.Errorf("Cargo.lock 依赖 crate 条目被误改")
+	}
+
+	v, err := ep.Read(ctx)
+	if err != nil {
+		t.Fatalf("bump 后 Read error: %v", err)
+	}
+	if v != "1.1.1" {
+		t.Errorf("bump 后 Read = %s, want 1.1.1", v)
+	}
+}
+
+// TestRustPluginDetect 验证检测边界：Cargo.toml 缺失、无 [package] 段、
+// 段内无 version（含 workspace 继承写法）时插件不激活，依赖段里的
+// version 串与注释不算项目版本。
+func TestRustPluginDetect(t *testing.T) {
+	rustLua, err := os.ReadFile(filepath.Join("..", "..", "plugins", "rust.lua"))
+	if err != nil {
+		t.Fatalf("读取 plugins/rust.lua 失败: %v", err)
+	}
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"标准 [package] 段", "[package]\nname = \"a\"\nversion = \"1.0.0\"\n", true},
+		{"无 Cargo.toml", "", false},
+		{"[package] 无 version", "[package]\nname = \"a\"\n", false},
+		{"仅依赖段的 version", "[dependencies]\nclap = { version = \"4.5\" }\n", false},
+		{"workspace 虚拟根", "[workspace]\nmembers = [\"crates/a\"]\n", false},
+		{"version.workspace 继承", "[package]\nname = \"a\"\nversion.workspace = true\n", false},
+		{"注释中的 version", "[package]\nname = \"a\"\n# version = \"1.0.0\"\n", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if tc.content != "" {
+				writeTestFile(t, filepath.Join(root, "Cargo.toml"), tc.content)
+			}
+			ep, err := LoadEmbeddedProvider("rust", string(rustLua), NewRunner(root, nil))
+			if err != nil {
+				t.Fatalf("LoadEmbeddedProvider error: %v", err)
+			}
+			ctx := &provider.Context{Project: &provider.Project{Root: root}}
+			if got := ep.Detect(ctx); got != tc.want {
+				t.Errorf("Detect = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRustLockMismatch 验证 Cargo.lock 根包版本与 Cargo.toml 不一致时
+// check 报错（错误信息带 rust 前缀与"不一致"字样，可诊断）。
+func TestRustLockMismatch(t *testing.T) {
+	rustLua, err := os.ReadFile(filepath.Join("..", "..", "plugins", "rust.lua"))
+	if err != nil {
+		t.Fatalf("读取 plugins/rust.lua 失败: %v", err)
+	}
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"link-disk\"\nversion = \"1.1.0\"\n")
+	writeTestFile(t, filepath.Join(root, "Cargo.lock"), bigCargoLock("link-disk", "1.0.9", 2))
+	initTestRepo(t, root, "v1.1.0")
+
+	ep, err := LoadEmbeddedProvider("rust", string(rustLua), NewRunner(root, nil))
+	if err != nil {
+		t.Fatalf("LoadEmbeddedProvider error: %v", err)
+	}
+	engine := core.New(config.Default(), ep)
+	ctx := &provider.Context{Project: &provider.Project{Root: root}, Log: t.Logf}
+	_, err = engine.Check(ctx)
+	if err == nil {
+		t.Fatalf("lock 与 Cargo.toml 不一致时 Check 应报错")
+	}
+	if !strings.Contains(err.Error(), "rust") || !strings.Contains(err.Error(), "不一致") {
+		t.Errorf("错误信息应含 rust 前缀与\"不一致\"字样，实际: %v", err)
+	}
+}

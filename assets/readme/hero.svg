@@ -26,7 +26,7 @@
     <text class="sans" x="0" y="224" font-size="26" fill="#AEB4BD">git tag 是唯一权威源，</text>
     <text class="sans" x="0" y="258" font-size="26" fill="#AEB4BD">所有版本文件一次同步。</text>
 
-    <text class="mono" x="0" y="302" font-size="20" fill="#8A919C">GO · TAURI / FLUTTER / UV / NODE / MOONBIT · MIT</text>
+    <text class="mono" x="0" y="302" font-size="18" fill="#8A919C">GO · TAURI / RUST / FLUTTER / UV / NODE / MOONBIT · MIT</text>
 
     <!-- prompt + tag pill motif -->
     <text class="mono" x="0" y="334" font-size="22" fill="#E6E9EE">
@@ -51,11 +51,12 @@
     <g class="mono" font-size="22">
       <text x="28" y="142" fill="#E6E9EE"><tspan fill="#8A919C">$</tspan> git-tags check</text>
       <text x="28" y="172"><tspan fill="#8A919C">git</tspan><tspan fill="#E6E9EE">     0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
-      <text x="28" y="202"><tspan fill="#8A919C">tauri</tspan><tspan fill="#E6E9EE">   0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
-      <text x="28" y="232"><tspan fill="#8A919C">flutter</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
-      <text x="28" y="262"><tspan fill="#8A919C">uv</tspan><tspan fill="#E6E9EE">      0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
-      <text x="28" y="292"><tspan fill="#8A919C">node</tspan><tspan fill="#E6E9EE">    0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
-      <text x="28" y="322"><tspan fill="#8A919C">moonbit</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="198"><tspan fill="#8A919C">tauri</tspan><tspan fill="#E6E9EE">   0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="224"><tspan fill="#8A919C">rust</tspan><tspan fill="#E6E9EE">    0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="250"><tspan fill="#8A919C">flutter</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="276"><tspan fill="#8A919C">uv</tspan><tspan fill="#E6E9EE">      0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="302"><tspan fill="#8A919C">node</tspan><tspan fill="#E6E9EE">    0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
+      <text x="28" y="328"><tspan fill="#8A919C">moonbit</tspan><tspan fill="#E6E9EE"> 0.6.1</tspan><tspan fill="#7EE787">  ✓</tspan></text>
     </g>
   </g>
 </svg>

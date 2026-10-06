@@ -90,6 +90,7 @@ end
 | provider | 优先级 | 文件要点 |
 |----------|--------|----------|
 | tauri | 85 | 多文件 + README badge + Cargo.lock 根条目 |
+| rust | 80 | 根目录 `Cargo.toml` `[package]` 段 + `Cargo.lock` 根包条目（tauri 的 Cargo.toml 在 src-tauri/ 下，两者不冲突） |
 | flutter | 75 | `pubspec.yaml` 顶层 + 保留 `+build` 号 + `pubspec.lock` root |
 | uv | 70 | pyproject 段内 key 读写 + `uv.lock` 根包条目 |
 | node | 65 | `package.json` + lock 根条目 |

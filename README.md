@@ -6,7 +6,7 @@
 
 **一条命令让项目版本与 git tag 永远保持一致。** git tag 是唯一权威源：`git-tags` 把同一个版本写入项目的所有版本文件，然后创建 tag——发布新版本再也不用手动改五个文件。
 
-- **零安装开箱即用** —— 内置 tauri、flutter、uv python、node、moonbit 支持（Lua 插件已内嵌进二进制，无需任何安装）
+- **零安装开箱即用** —— 内置 tauri、rust、flutter、uv python、node、moonbit 支持（Lua 插件已内嵌进二进制，无需任何安装）
 - **Lua 可扩展** —— 一个 `.lua` 文件即可支持任意项目结构，无需改 Go 代码
 - **锁文件同步** —— `package-lock.json`、`Cargo.lock`、`pubspec.lock`、`uv.lock` 的根条目版本随发布一起写入并进入 tag 提交，lock 与配置文件永远一致（锁定内容仍由工具链管理）
 
@@ -25,6 +25,7 @@ go build -o git-tags main.go        # 或直接下载 release 二进制
 ```text
 git        0.6.1        ✓
 tauri      0.6.1        ✓
+rust       0.6.1        ✓
 node       0.6.1        ✓
 ```
 
@@ -35,11 +36,11 @@ node       0.6.1        ✓
 一个源头，多处输出：
 
 <p align="center">
-  <img src="./assets/readme/sync-flow.svg" width="100%" alt="git tag 是唯一权威源，同步到 tauri、flutter、uv、node 与 Lua 插件；锁文件根条目版本随发布同步">
+  <img src="./assets/readme/sync-flow.svg" width="100%" alt="git tag 是唯一权威源，同步到 tauri、rust、flutter、uv、node 与 Lua 插件；锁文件根条目版本随发布同步">
 </p>
 
 1. `git-tags patch` 读取**最新 git tag** 作为权威版本。
-2. 每个激活的 provider 把该版本写入自己的文件（`package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml`、`pubspec.yaml`、`pyproject.toml`、`moon.mod` …）。
+2. 每个激活的 provider 把该版本写入自己的文件（`package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml`（tauri / rust）、`pubspec.yaml`、`pyproject.toml`、`moon.mod` …）。
 3. 创建新 tag——可顺带提交（`--commit`）与推送（`--push`）。
 
 ## 命令
